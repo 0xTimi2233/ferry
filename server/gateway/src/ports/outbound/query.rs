@@ -89,16 +89,19 @@ pub struct CredentialFilter {
 
 #[derive(Debug, Clone, Default)]
 pub struct RequestLogFilter {
-    pub keyword: Option<String>,
+    pub alias: Option<String>,
+    pub credential: Option<String>,
     pub only_failed: bool,
 }
 
+/// 凭证读模型：列表按上游筛选，详情按标识取单条，密钥只以掩码返回
 #[async_trait]
 pub trait CredentialQuery: Send + Sync {
     async fn list(&self, filter: CredentialFilter) -> Result<Vec<CredentialView>, PortError>;
     async fn get(&self, id: &CredentialId) -> Result<Option<CredentialView>, PortError>;
 }
 
+/// 别名读模型：返回别名及其目标的完整投影
 #[async_trait]
 pub trait AliasQuery: Send + Sync {
     async fn list(&self) -> Result<Vec<AliasView>, PortError>;
@@ -109,6 +112,7 @@ pub trait CredentialGroupQuery: Send + Sync {
     async fn list(&self) -> Result<Vec<CredentialGroupView>, PortError>;
 }
 
+/// 用量读模型：按时间粒度聚合，或按凭证聚合折算金额
 #[async_trait]
 pub trait UsageQuery: Send + Sync {
     async fn buckets(
@@ -131,6 +135,7 @@ pub struct CredentialCostView {
     pub cost: Money,
 }
 
+/// 请求日志读模型：按时间倒序，支持按别名、凭证与失败筛选
 #[async_trait]
 pub trait RequestLogQuery: Send + Sync {
     async fn list(&self, filter: RequestLogFilter) -> Result<Vec<RequestLogView>, PortError>;

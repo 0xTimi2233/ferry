@@ -345,7 +345,7 @@ fn should_publish_credential_deleted_event() -> TestResult {
 
 #[test]
 fn should_group_credentials_by_provider_with_default_strategy() -> TestResult {
-    let mut group = CredentialGroup::for_provider(group_id(), provider("DeepSeek")?);
+    let mut group = CredentialGroup::for_provider(provider("DeepSeek")?);
 
     assert_eq!(group.provider().as_str(), "DeepSeek");
     assert_eq!(group.strategy(), SelectionStrategy::RoundRobin);
@@ -425,7 +425,7 @@ fn should_reject_reference_to_missing_group() -> TestResult {
 
 #[test]
 fn should_accept_reference_to_existing_group() -> TestResult {
-    let group = CredentialGroup::for_provider(group_id(), provider("DeepSeek")?);
+    let group = CredentialGroup::for_provider(provider("DeepSeek")?);
 
     let result = ensure_alias_can_reference(Some(&group), group.id());
 

@@ -249,9 +249,9 @@ impl Default for RetryPolicy {
 }
 
 impl RetryPolicy {
-    /// 该状态码是否可重试
+    /// 403 属于权限问题，重试无意义，不列入可重试状态
     pub fn is_retryable_status(status: u16) -> bool {
-        matches!(status, 403 | 408 | 429 | 500 | 502 | 503 | 504)
+        matches!(status, 408 | 429 | 500 | 502 | 503 | 504)
     }
 }
 

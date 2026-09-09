@@ -5,6 +5,7 @@
 
 use std::future::Future;
 
+use crate::domain::errors::{CatalogError, CredentialError, RelayError, SettingsError};
 use crate::ports::outbound::PortError;
 
 /// 一个用例的处理结果
@@ -42,6 +43,49 @@ impl std::error::Error for UseCaseError {}
 impl From<PortError> for UseCaseError {
     fn from(value: PortError) -> Self {
         Self::Port(value)
+    }
+}
+
+impl From<CredentialError> for UseCaseError {
+    fn from(value: CredentialError) -> Self {
+        use CredentialError as E;
+        match value {
+            E::NotFound(name) => Self::NotFound(format!("凭证 {name}")),
+            E::Duplicated(name) => Self::Domain(format!("凭证 {name} 已存在")),
+            E::Invalid(inner) => Self::InvalidInput(inner.to_string()),
+            other => Self::Domain(other.to_string()),
+        }
+    }
+}
+
+impl From<CatalogError> for UseCaseError {
+    fn from(value: CatalogError) -> Self {
+        use CatalogError as E;
+        match value {
+            E::NotFound(name) | E::GroupNotFound(name) => Self::NotFound(name),
+            E::Duplicated(name) => Self::Domain(format!("别名 {name} 已存在")),
+            E::Invalid(inner) => Self::InvalidInput(inner.to_string()),
+            other => Self::Domain(other.to_string()),
+        }
+    }
+}
+
+impl From<RelayError> for UseCaseError {
+    fn from(value: RelayError) -> Self {
+        match value {
+            RelayError::Unauthorized => Self::Unauthorized,
+            RelayError::AliasNotFound(name) => Self::NotFound(format!("模型 {name}")),
+            other => Self::Domain(other.to_string()),
+        }
+    }
+}
+
+impl From<SettingsError> for UseCaseError {
+    fn from(value: SettingsError) -> Self {
+        match value {
+            SettingsError::Invalid(inner) => Self::InvalidInput(inner.to_string()),
+            other => Self::Domain(other.to_string()),
+        }
     }
 }
 

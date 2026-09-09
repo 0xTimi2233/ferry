@@ -400,9 +400,10 @@ pub struct CredentialGroup {
 }
 
 impl CredentialGroup {
-    pub fn for_provider(id: GroupId, provider: Provider) -> Self {
+    /// 组由上游唯一确定，标识与上游绑定
+    pub fn for_provider(provider: Provider) -> Self {
         Self {
-            id,
+            id: GroupId::for_provider(&provider),
             provider,
             strategy: SelectionStrategy::default(),
         }

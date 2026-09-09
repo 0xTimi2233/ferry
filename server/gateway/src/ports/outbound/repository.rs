@@ -10,6 +10,7 @@ use crate::domain::values::{
 
 use super::PortError;
 
+/// 凭证仓储：按标识与名称查凭证，保存为整体替换
 #[async_trait]
 pub trait CredentialRepository: Send + Sync {
     async fn find(&self, id: &CredentialId) -> Result<Option<Credential>, PortError>;
@@ -19,6 +20,7 @@ pub trait CredentialRepository: Send + Sync {
     async fn delete(&self, id: &CredentialId) -> Result<(), PortError>;
 }
 
+/// 别名仓储：按名称查别名，`count_targets_to` 供账号组移除前判断引用
 #[async_trait]
 pub trait AliasRepository: Send + Sync {
     async fn find(&self, name: &AliasName) -> Result<Option<Alias>, PortError>;
@@ -28,6 +30,7 @@ pub trait AliasRepository: Send + Sync {
     async fn count_targets_to(&self, group: &GroupId) -> Result<u64, PortError>;
 }
 
+/// 账号组仓储：按上游标识存取，组内凭证清空时删除
 #[async_trait]
 pub trait CredentialGroupRepository: Send + Sync {
     async fn find(&self, id: &GroupId) -> Result<Option<CredentialGroup>, PortError>;
@@ -44,6 +47,7 @@ pub struct SessionBinding {
     pub expires_at: DateTime<Utc>,
 }
 
+/// 会话绑定仓储：同一会话至多一个绑定，删除幂等
 #[async_trait]
 pub trait SessionBindingRepository: Send + Sync {
     async fn find(&self, session_id: &str) -> Result<Option<SessionBinding>, PortError>;
@@ -51,6 +55,7 @@ pub trait SessionBindingRepository: Send + Sync {
     async fn remove(&self, session_id: &str) -> Result<(), PortError>;
 }
 
+/// 用量仓储：只追加不修改
 #[async_trait]
 pub trait UsageRepository: Send + Sync {
     async fn append(&self, record: &UsageRecord) -> Result<(), PortError>;
@@ -62,6 +67,7 @@ pub trait SettingsRepository: Send + Sync {
     async fn save(&self, settings: &Settings) -> Result<(), PortError>;
 }
 
+/// 待授权仓储：`take` 原子取出并消费，同一状态标识只能成功一次
 #[async_trait]
 pub trait PendingAuthorizationRepository: Send + Sync {
     async fn save(&self, pending: &PendingAuthorization) -> Result<(), PortError>;
@@ -72,6 +78,7 @@ pub trait PendingAuthorizationRepository: Send + Sync {
 /// 一次上游调用的入参，明文密钥只在此处出现
 #[derive(Debug, Clone)]
 pub struct UpstreamCall {
+    pub provider: crate::domain::values::Provider,
     pub secret: Secret,
     pub protocol: crate::domain::values::Protocol,
     pub upstream_model: UpstreamModelId,
@@ -103,6 +110,7 @@ pub struct ExchangedToken {
     pub account: Option<String>,
 }
 
+/// 上游客户端：按 `UpstreamCall.provider` 选择端点，`invoke` 不自行重试，重试由调度层决定
 #[async_trait]
 pub trait UpstreamClient: Send + Sync {
     async fn fetch_models(&self, call: UpstreamCall) -> Result<Vec<UpstreamModelId>, PortError>;
@@ -132,7 +140,7 @@ pub struct SealedSecret {
     pub ciphertext: String,
 }
 
-/// 凭据加解密，数据密钥的生命周期由适配器管理
+/// 凭据加解密：`seal` 为每次调用生成新的数据密钥，`open` 用包裹的密钥解出明文
 pub trait SecretCipher: Send + Sync {
     fn seal(&self, plaintext: &str) -> Result<SealedSecret, PortError>;
     fn open(&self, sealed: &SealedSecret) -> Result<Secret, PortError>;
