@@ -28,6 +28,13 @@ Feature: 管理访问密钥与服务端设置
     Then 返回新的访问密钥明文一次
     And 旧密钥立即失效
 
+  @wip @settings-manage_settings_affinity
+  Scenario: 切换会话粘性
+    Given 会话粘性已开启
+    When 提交会话粘性为关闭
+    Then 会话粘性变为关闭
+    And 其余设置不变
+
   @wip @settings-manage_settings_retention_invalid
   Scenario: 保留期取值非法时拒绝
     Given 统计粒度为按天

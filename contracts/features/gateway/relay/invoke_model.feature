@@ -57,3 +57,48 @@ Feature: 发起模型调用
     When 客户端请求该别名
     Then 请求被拒绝且凭证标记为失效
     And 不对该凭证继续重试
+
+  @wip @relay-invoke_model_cooldown_recovered
+  Scenario: 冷却到期后凭证重新可选
+    Given 别名 "deepseek-chat" 的唯一凭证处于冷却且恢复时间已过
+    When 客户端请求该别名
+    Then 该凭证被重新选中并完成调用
+    And 凭证健康状态回到可用
+
+  @wip @relay-invoke_model_session_affinity
+  Scenario: 同一会话固定使用同一凭证
+    Given 别名 "deepseek-chat" 包含两个可用凭证
+    And 会话粘性已开启
+    When 同一会话连续发起两次请求
+    Then 两次请求落到同一凭证
+    And 用量记录里两次都标记为命中会话粘性
+
+  @wip @relay-invoke_model_affinity_fallback
+  Scenario: 绑定凭证不可用时重建绑定
+    Given 某会话已绑定到凭证 "deepseek-main"
+    And 该凭证变为冷却
+    When 该会话再次发起请求
+    Then 网关改用另一个可用凭证完成调用
+    And 该会话的绑定更新为新凭证
+
+  @wip @relay-invoke_model_translation_failed
+  Scenario: 协议转换失败时拒绝
+    Given 别名 "deepseek-chat" 的目标协议不支持入站请求携带的工具定义
+    When 客户端请求该别名
+    Then 请求被拒绝且返回协议转换失败
+    And 不向上游发起请求
+
+  @wip @relay-invoke_model_malformed_upstream
+  Scenario: 上游返回不可解析响应时返回统一错误
+    Given 别名 "deepseek-chat" 存在可用凭证
+    And 上游返回无法解析的响应体
+    When 客户端请求该别名
+    Then 请求失败且错误信息包含上游来源
+    And 用量记录标记为失败
+
+  @wip @relay-invoke_model_stream_interrupted
+  Scenario: 流式过程中上游断开
+    Given 别名 "gpt-5-codex" 存在可用凭证
+    When 客户端要求流式响应且上游在流中途断开
+    Then 网关向客户端发送流内错误事件并结束流
+    And 用量记录标记为失败且保留已发生的 token 用量
