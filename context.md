@@ -14,11 +14,6 @@
 等价: Relay
 避免: 代理, 透传
 
-**基准协议**:
-直接实现的四套线上协议，分别是 OpenAI Chat Completions、OpenAI Responses、Anthropic Messages 与 Gemini
-等价: BaseProtocol
-避免: 标准协议, 原生协议
-
 **内部统一表示**:
 领域内部表达一次模型调用的语言
 等价: CanonicalRequest
