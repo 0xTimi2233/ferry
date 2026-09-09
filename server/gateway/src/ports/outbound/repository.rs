@@ -53,11 +53,14 @@ pub trait PendingAuthorizationRepository: Send + Sync {
     async fn take(&self, state: &str) -> Result<Option<PendingAuthorization>, PortError>;
 }
 
-/// 一次上游调用的入参
+/// 一次上游调用的入参，明文密钥只在此处出现
 #[derive(Debug, Clone)]
-pub struct UpstreamRequest {
+pub struct UpstreamCall {
+    pub secret: Secret,
     pub protocol: crate::domain::values::Protocol,
     pub upstream_model: UpstreamModelId,
+    pub base_url: Option<String>,
+    pub timeout_seconds: u64,
     pub body: Vec<u8>,
     pub stream: bool,
 }
@@ -84,16 +87,9 @@ pub struct ExchangedToken {
 
 #[async_trait]
 pub trait UpstreamClient: Send + Sync {
-    async fn fetch_models(
-        &self,
-        credential: &Credential,
-    ) -> Result<Vec<UpstreamModelId>, PortError>;
+    async fn fetch_models(&self, call: UpstreamCall) -> Result<Vec<UpstreamModelId>, PortError>;
 
-    async fn invoke(
-        &self,
-        credential: &Credential,
-        request: UpstreamRequest,
-    ) -> Result<UpstreamResponse, PortError>;
+    async fn invoke(&self, call: UpstreamCall) -> Result<UpstreamResponse, PortError>;
 
     /// 由授权码换取令牌
     async fn exchange_authorization_code(
@@ -103,11 +99,23 @@ pub trait UpstreamClient: Send + Sync {
         code_verifier: &str,
     ) -> Result<ExchangedToken, PortError>;
 
-    async fn refresh_token(&self, credential: &Credential) -> Result<ExchangedToken, PortError>;
+    async fn refresh_token(
+        &self,
+        credential_id: &CredentialId,
+        refresh_token: Secret,
+    ) -> Result<ExchangedToken, PortError>;
 }
 
-/// 凭据加解密，主密钥来自信封加密
+/// 信封加密的密文：数据密钥被包裹，密文与包裹后的密钥分开存放
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SealedSecret {
+    pub wrapped_key: String,
+    pub nonce: String,
+    pub ciphertext: String,
+}
+
+/// 凭据加解密，数据密钥的生命周期由适配器管理
 pub trait SecretCipher: Send + Sync {
-    fn encrypt(&self, plaintext: &str) -> Result<String, PortError>;
-    fn decrypt(&self, ciphertext: &str) -> Result<String, PortError>;
+    fn seal(&self, plaintext: &str) -> Result<SealedSecret, PortError>;
+    fn open(&self, sealed: &SealedSecret) -> Result<Secret, PortError>;
 }

@@ -114,6 +114,18 @@ pub trait UsageQuery: Send + Sync {
         to: DateTime<Utc>,
         granularity: Granularity,
     ) -> Result<Vec<UsageBucketView>, PortError>;
+
+    async fn cost_by_credential(
+        &self,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
+    ) -> Result<Vec<CredentialCostView>, PortError>;
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CredentialCostView {
+    pub credential_id: CredentialId,
+    pub cost: Money,
 }
 
 #[async_trait]
