@@ -6,5 +6,6 @@ pub struct InvokeModel {
     pub alias: String,
     pub protocol: crate::domain::values::Protocol,
     pub stream: bool,
+    pub session_id: Option<String>,
     pub body: Vec<u8>,
 }

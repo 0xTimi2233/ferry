@@ -38,7 +38,7 @@
 | PATCH | `/admin/credential-groups/{id}` | configure_credential_group |
 | GET | `/admin/aliases` | list_aliases |
 | POST | `/admin/aliases` | create_alias |
-| POST | `/admin/aliases/{name}/targets` | create_alias |
+| POST | `/admin/aliases/{name}/targets` | create_alias 追加目标 |
 | DELETE | `/admin/aliases/{name}` | delete_alias |
 | GET | `/admin/usage` | query_usage_summary |
 | GET | `/admin/logs` | query_request_logs |
@@ -47,10 +47,12 @@
 
 ## 错误码映射
 
-| 用例错误 | HTTP 状态码 |
-|---|---|
-| InvalidInput | 400 |
-| Unauthorized | 401 |
-| NotFound | 404 |
-| Domain | 409 |
-| Port | 502 |
+| 用例错误 | HTTP 状态码 | 附带头 |
+|---|---|---|
+| InvalidInput | 400 | — |
+| Unauthorized | 401 | — |
+| NotFound | 404 | — |
+| Domain，账号组并发已满 | 429 | `Retry-After: 1` |
+| Domain，全部凭证不可用 | 503 | `Retry-After` 为最晚恢复时间距当前的秒数 |
+| Domain，其余业务规则拒绝 | 409 | — |
+| Port | 502 | — |
