@@ -2,30 +2,18 @@
 
 use crate::domain::values::InvalidValue;
 
-/// 凭证领域的失败原因
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CredentialError {
-    /// 同名凭证已存在
     Duplicated(String),
-    /// 上游不在支持范围内
     UpstreamUnsupported(String),
-    /// 上游不支持订阅授权
     UpstreamLacksSubscription(String),
-    /// 待授权状态已过期
     AuthorizationExpired,
-    /// 待授权状态不存在或已被消费
     AuthorizationInvalid,
-    /// 凭证当前不可用
     NotAvailable(String),
-    /// 凭证仍被模型别名引用
     Referenced(String),
-    /// 凭证不存在
     NotFound(String),
-    /// 待保留的模型不在上游清单中
     ModelNotOffered(String),
-    /// 保留清单为空
     EmptySelection,
-    /// 取值不合法
     Invalid(InvalidValue),
 }
 
@@ -49,18 +37,12 @@ impl std::fmt::Display for CredentialError {
 
 impl std::error::Error for CredentialError {}
 
-/// 模型目录领域的失败原因
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CatalogError {
-    /// 同名别名已存在
     Duplicated(String),
-    /// 别名不存在
     NotFound(String),
-    /// 引用的凭证不存在
     CredentialNotFound(String),
-    /// 引用的凭证不可用
     CredentialUnavailable(String),
-    /// 取值不合法
     Invalid(InvalidValue),
 }
 
@@ -78,25 +60,16 @@ impl std::fmt::Display for CatalogError {
 
 impl std::error::Error for CatalogError {}
 
-/// 转发与调度领域的失败原因
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RelayError {
-    /// 模型别名不存在
     AliasNotFound(String),
-    /// 访问密钥无效
     Unauthorized,
-    /// 全部凭证不可用
     AllUnavailable {
-        /// 尝试过的凭证名称
         attempted: Vec<String>,
-        /// 预计恢复时间
         recover_at: Option<chrono::DateTime<chrono::Utc>>,
     },
-    /// 上游返回错误
     UpstreamFailed {
-        /// 上游名称
         provider: String,
-        /// 状态码
         status: u16,
     },
 }
@@ -118,12 +91,9 @@ impl std::fmt::Display for RelayError {
 
 impl std::error::Error for RelayError {}
 
-/// 设置领域的失败原因
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SettingsError {
-    /// 保留期取值非法
     RetentionInvalid(String),
-    /// 取值不合法
     Invalid(InvalidValue),
 }
 

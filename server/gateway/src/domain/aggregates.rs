@@ -9,35 +9,25 @@ use crate::domain::values::{
     Secret, SelectionStrategy, TokenUsage, UpstreamModelId, UpstreamRefId, Weight,
 };
 
-/// 凭证的凭据形态
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CredentialKind {
-    /// 长期有效的密钥
     ApiKey {
-        /// 密钥明文
         secret: Secret,
     },
-    /// 会过期并需要刷新的订阅凭据
     Subscription {
-        /// 访问令牌
         access_token: Secret,
-        /// 刷新令牌
         refresh_token: Secret,
-        /// 过期时刻
         expires_at: DateTime<Utc>,
-        /// 账号标识
         account: Option<String>,
     },
 }
 
 impl CredentialKind {
-    /// 是否订阅型
     pub fn is_subscription(&self) -> bool {
         matches!(self, Self::Subscription { .. })
     }
 }
 
-/// 凭证聚合根
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Credential {
     id: CredentialId,
@@ -53,7 +43,6 @@ pub struct Credential {
 }
 
 impl Credential {
-    /// 注册一个密钥凭证
     pub fn register_api_key(
         id: CredentialId,
         name: impl Into<String>,
@@ -69,24 +58,21 @@ impl Credential {
             name: name.clone(),
             provider: provider.as_str().to_string(),
         };
-        Ok((
-            Self {
-                id,
-                name,
-                provider,
-                kind: CredentialKind::ApiKey { secret },
-                priority: Priority::default(),
-                weight: Weight::default(),
-                health: HealthStatus::Ready,
-                offered_models: Vec::new(),
-                kept_models: Vec::new(),
-                next_refresh_at: None,
-            },
-            event,
-        ))
+        let credential = Self {
+            id,
+            name,
+            provider,
+            kind: CredentialKind::ApiKey { secret },
+            priority: Priority::default(),
+            weight: Weight::default(),
+            health: HealthStatus::Ready,
+            offered_models: Vec::new(),
+            kept_models: Vec::new(),
+            next_refresh_at: None,
+        };
+        Ok((credential, event))
     }
 
-    /// 登记一个订阅凭证
     pub fn register_subscription(
         id: CredentialId,
         name: impl Into<String>,
@@ -110,84 +96,70 @@ impl Credential {
             name: name.clone(),
             provider: provider.as_str().to_string(),
         };
-        Ok((
-            Self {
-                id,
-                name,
-                provider,
-                kind: CredentialKind::Subscription {
-                    access_token,
-                    refresh_token,
-                    expires_at,
-                    account,
-                },
-                priority: Priority::default(),
-                weight: Weight::default(),
-                health: HealthStatus::Ready,
-                offered_models: Vec::new(),
-                kept_models: Vec::new(),
-                next_refresh_at: Some(expires_at),
+        let credential = Self {
+            id,
+            name,
+            provider,
+            kind: CredentialKind::Subscription {
+                access_token,
+                refresh_token,
+                expires_at,
+                account,
             },
-            event,
-        ))
+            priority: Priority::default(),
+            weight: Weight::default(),
+            health: HealthStatus::Ready,
+            offered_models: Vec::new(),
+            kept_models: Vec::new(),
+            next_refresh_at: Some(expires_at),
+        };
+        Ok((credential, event))
     }
 
-    /// 标识
     pub fn id(&self) -> &CredentialId {
         &self.id
     }
 
-    /// 名称
     pub fn name(&self) -> &str {
         &self.name
     }
 
-    /// 上游
     pub fn provider(&self) -> &Provider {
         &self.provider
     }
 
-    /// 凭据形态
     pub fn kind(&self) -> &CredentialKind {
         &self.kind
     }
 
-    /// 健康状态
     pub fn health(&self) -> &HealthStatus {
         &self.health
     }
 
-    /// 优先级
     pub fn priority(&self) -> Priority {
         self.priority
     }
 
-    /// 权重
     pub fn weight(&self) -> Weight {
         self.weight
     }
 
-    /// 上游声明的模型清单
     pub fn offered_models(&self) -> &[UpstreamModelId] {
         &self.offered_models
     }
 
-    /// 已保留的模型
     pub fn kept_models(&self) -> &[UpstreamModelId] {
         &self.kept_models
     }
 
-    /// 下次刷新时刻
     pub fn next_refresh_at(&self) -> Option<DateTime<Utc>> {
         self.next_refresh_at
     }
 
-    /// 是否可被调度选取
     pub fn is_available(&self) -> bool {
         self.health.is_available()
     }
 
-    /// 密钥掩码
     pub fn masked_secret(&self) -> String {
         match &self.kind {
             CredentialKind::ApiKey { secret } => secret.mask(),
@@ -195,13 +167,12 @@ impl Credential {
         }
     }
 
-    /// 记录上游声明的模型清单，已保留的模型自动标为选中
+    /// 上游清单变化时，已保留但不再提供的模型被剔除
     pub fn record_offered_models(&mut self, models: Vec<UpstreamModelId>) {
         self.kept_models.retain(|m| models.contains(m));
         self.offered_models = models;
     }
 
-    /// 更新保留的模型
     pub fn update_kept_models(
         &mut self,
         selected: Vec<UpstreamModelId>,
@@ -218,7 +189,6 @@ impl Credential {
         Ok(())
     }
 
-    /// 拉取模型前的前置校验
     pub fn ensure_available_for_fetch(&self) -> Result<(), CredentialError> {
         if self.is_available() {
             Ok(())
@@ -227,25 +197,16 @@ impl Credential {
         }
     }
 
-    /// 禁用
     pub fn disable(&mut self) -> DomainEvent {
         self.health = HealthStatus::Disabled;
-        DomainEvent::CredentialHealthChanged {
-            id: self.id.clone(),
-            status: self.health.clone(),
-        }
+        self.health_changed_event()
     }
 
-    /// 启用
     pub fn enable(&mut self) -> DomainEvent {
         self.health = HealthStatus::Ready;
-        DomainEvent::CredentialHealthChanged {
-            id: self.id.clone(),
-            status: self.health.clone(),
-        }
+        self.health_changed_event()
     }
 
-    /// 标记冷却
     pub fn mark_cooling(
         &mut self,
         reason: impl Into<String>,
@@ -255,24 +216,23 @@ impl Credential {
             reason: reason.into(),
             recover_at,
         };
-        DomainEvent::CredentialHealthChanged {
-            id: self.id.clone(),
-            status: self.health.clone(),
-        }
+        self.health_changed_event()
     }
 
-    /// 标记失效
     pub fn mark_failed(&mut self, reason: impl Into<String>) -> DomainEvent {
         self.health = HealthStatus::Failed {
             reason: reason.into(),
         };
+        self.health_changed_event()
+    }
+
+    fn health_changed_event(&self) -> DomainEvent {
         DomainEvent::CredentialHealthChanged {
             id: self.id.clone(),
             status: self.health.clone(),
         }
     }
 
-    /// 刷新订阅令牌，返回是否发生变更
     pub fn apply_refresh(
         &mut self,
         access_token: Secret,
@@ -292,13 +252,10 @@ impl Credential {
         }
         self.health = HealthStatus::Ready;
         self.next_refresh_at = Some(expires_at);
-        DomainEvent::CredentialHealthChanged {
-            id: self.id.clone(),
-            status: self.health.clone(),
-        }
+        self.health_changed_event()
     }
 
-    /// 刷新失败后的处理，访问令牌仍有效时推迟下次刷新
+    /// 访问令牌仍有效时只推迟下次刷新，已过期才标记失效
     pub fn on_refresh_failed(
         &mut self,
         now: DateTime<Utc>,
@@ -315,7 +272,6 @@ impl Credential {
     }
 }
 
-/// 一个上游引用
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UpstreamRef {
     id: UpstreamRefId,
@@ -327,7 +283,6 @@ pub struct UpstreamRef {
 }
 
 impl UpstreamRef {
-    /// 构造一个上游引用
     pub fn new(
         id: UpstreamRefId,
         credential_id: CredentialId,
@@ -344,44 +299,36 @@ impl UpstreamRef {
         }
     }
 
-    /// 标识
     pub fn id(&self) -> &UpstreamRefId {
         &self.id
     }
 
-    /// 引用的凭证
     pub fn credential_id(&self) -> &CredentialId {
         &self.credential_id
     }
 
-    /// 上游模型
     pub fn upstream_model(&self) -> &UpstreamModelId {
         &self.upstream_model
     }
 
-    /// 协议
     pub fn protocol(&self) -> Protocol {
         self.protocol
     }
 
-    /// 权重
     pub fn weight(&self) -> Weight {
         self.weight
     }
 
-    /// 优先级
     pub fn priority(&self) -> Priority {
         self.priority
     }
 
-    /// 设置权重与优先级
     pub fn tune(&mut self, weight: Weight, priority: Priority) {
         self.weight = weight;
         self.priority = priority;
     }
 }
 
-/// 模型别名聚合根
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ModelAlias {
     name: AliasName,
@@ -390,7 +337,6 @@ pub struct ModelAlias {
 }
 
 impl ModelAlias {
-    /// 创建别名并携带首个上游引用
     pub fn create(name: AliasName, strategy: SelectionStrategy, first: UpstreamRef) -> Self {
         Self {
             name,
@@ -399,39 +345,33 @@ impl ModelAlias {
         }
     }
 
-    /// 名称
     pub fn name(&self) -> &AliasName {
         &self.name
     }
 
-    /// 选择策略
     pub fn strategy(&self) -> SelectionStrategy {
         self.strategy
     }
 
-    /// 上游引用
     pub fn refs(&self) -> &[UpstreamRef] {
         &self.refs
     }
 
-    /// 追加一个上游引用
     pub fn add_ref(&mut self, reference: UpstreamRef) {
         self.refs.push(reference);
     }
 
-    /// 是否引用了该凭证
     pub fn references(&self, credential_id: &CredentialId) -> bool {
         self.refs.iter().any(|r| r.credential_id() == credential_id)
     }
 
-    /// 移除某个凭证的全部引用，返回是否已无引用
+    /// 返回移除后是否已无引用，由调用方决定是否删除别名
     pub fn remove_credential_refs(&mut self, credential_id: &CredentialId) -> bool {
         self.refs.retain(|r| r.credential_id() != credential_id);
         self.refs.is_empty()
     }
 }
 
-/// 用量记录聚合根
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UsageRecord {
     request_id: String,
@@ -444,7 +384,7 @@ pub struct UsageRecord {
 }
 
 impl UsageRecord {
-    /// 记录一次调用
+    #[allow(clippy::too_many_arguments)]
     pub fn record(
         request_id: impl Into<String>,
         credential_id: CredentialId,
@@ -473,52 +413,41 @@ impl UsageRecord {
         (record, event)
     }
 
-    /// 请求标识
     pub fn request_id(&self) -> &str {
         &self.request_id
     }
 
-    /// 凭证标识
     pub fn credential_id(&self) -> &CredentialId {
         &self.credential_id
     }
 
-    /// 别名
     pub fn alias(&self) -> &AliasName {
         &self.alias
     }
 
-    /// token 用量
     pub fn tokens(&self) -> TokenUsage {
         self.tokens
     }
 
-    /// 折算金额
     pub fn cost(&self) -> Money {
         self.cost
     }
 
-    /// 是否成功
     pub fn succeeded(&self) -> bool {
         self.succeeded
     }
 
-    /// 发生时刻
     pub fn at(&self) -> DateTime<Utc> {
         self.at
     }
 }
 
-/// 统计粒度
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Granularity {
-    /// 按天
     Daily,
-    /// 按小时
     Hourly,
 }
 
-/// 设置聚合根
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Settings {
     listen: String,
@@ -529,7 +458,6 @@ pub struct Settings {
 }
 
 impl Settings {
-    /// 初始化设置
     pub fn initialize(listen: impl Into<String>, access_key_hash: impl Into<String>) -> Self {
         Self {
             listen: listen.into(),
@@ -540,32 +468,26 @@ impl Settings {
         }
     }
 
-    /// 监听地址
     pub fn listen(&self) -> &str {
         &self.listen
     }
 
-    /// 访问密钥哈希
     pub fn access_key_hash(&self) -> &str {
         &self.access_key_hash
     }
 
-    /// 统计粒度
     pub fn granularity(&self) -> Granularity {
         self.granularity
     }
 
-    /// 保留期
     pub fn retention_days(&self) -> u32 {
         self.retention_days
     }
 
-    /// 会话粘性是否开启
     pub fn session_affinity(&self) -> bool {
         self.session_affinity
     }
 
-    /// 更新保留期
     pub fn update_retention(&mut self, days: u32) -> Result<(), SettingsError> {
         if days == 0 {
             return Err(SettingsError::RetentionInvalid(format!("{days} 天")));
@@ -574,18 +496,15 @@ impl Settings {
         Ok(())
     }
 
-    /// 更新会话粘性
     pub fn update_session_affinity(&mut self, enabled: bool) {
         self.session_affinity = enabled;
     }
 
-    /// 轮换访问密钥
     pub fn rotate_access_key(&mut self, new_hash: impl Into<String>) {
         self.access_key_hash = new_hash.into();
     }
 }
 
-/// 别名与凭证引用之间的约束检查
 pub fn ensure_alias_can_reference(
     credential: Option<&Credential>,
     credential_id: &CredentialId,
