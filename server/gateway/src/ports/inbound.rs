@@ -11,13 +11,20 @@ use crate::ports::outbound::PortError;
 /// 一个用例的处理结果
 pub type UseCaseResult<T> = Result<T, UseCaseError>;
 
-/// 用例失败，区分入站输入非法、领域规则拒绝与出站依赖失败
+/// 用例失败，按适配器可映射的语义分档
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UseCaseError {
     /// 入站输入不合法
     InvalidInput(String),
-    /// 领域规则拒绝
+    /// 业务规则拒绝
     Domain(String),
+    /// 并发达到上限，属短时可重试
+    ConcurrencyLimited { retry_after_seconds: u64 },
+    /// 全部凭证不可用，恢复时间取其中最晚
+    AllCredentialsUnavailable {
+        attempted: Vec<String>,
+        retry_after_seconds: Option<u64>,
+    },
     /// 资源不存在
     NotFound(String),
     /// 未授权
@@ -31,6 +38,10 @@ impl std::fmt::Display for UseCaseError {
         match self {
             Self::InvalidInput(reason) => write!(f, "输入不合法：{reason}"),
             Self::Domain(reason) => write!(f, "业务规则拒绝：{reason}"),
+            Self::ConcurrencyLimited { .. } => f.write_str("并发已满"),
+            Self::AllCredentialsUnavailable { attempted, .. } => {
+                write!(f, "全部凭证不可用，已尝试 {}", attempted.join("、"))
+            }
             Self::NotFound(name) => write!(f, "{name} 不存在"),
             Self::Unauthorized => f.write_str("未授权"),
             Self::Port(inner) => inner.fmt(f),
@@ -75,6 +86,10 @@ impl From<RelayError> for UseCaseError {
         match value {
             RelayError::Unauthorized => Self::Unauthorized,
             RelayError::AliasNotFound(name) => Self::NotFound(format!("模型 {name}")),
+            RelayError::AllUnavailable { attempted, .. } => Self::AllCredentialsUnavailable {
+                attempted,
+                retry_after_seconds: None,
+            },
             other => Self::Domain(other.to_string()),
         }
     }

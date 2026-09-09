@@ -52,7 +52,7 @@
 | InvalidInput | 400 | — |
 | Unauthorized | 401 | — |
 | NotFound | 404 | — |
-| Domain，账号组并发已满 | 429 | `Retry-After: 1` |
-| Domain，全部凭证不可用 | 503 | `Retry-After` 为最晚恢复时间距当前的秒数 |
+| ConcurrencyLimited | 429 | `Retry-After: 1` |
+| AllCredentialsUnavailable | 503 | `Retry-After` 为最晚恢复时间距当前的秒数 |
 | Domain，其余业务规则拒绝 | 409 | — |
 | Port | 502 | — |
