@@ -3,6 +3,7 @@
 /// 入站数据
 #[derive(Debug, Clone, Default)]
 pub struct QueryRequestLogs {
-    pub keyword: Option<String>,
+    pub alias: Option<String>,
+    pub credential: Option<String>,
     pub only_failed: bool,
 }

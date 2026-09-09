@@ -14,6 +14,7 @@ pub struct CredentialView {
     pub name: String,
     pub kind: CredentialKindView,
     pub provider: String,
+    pub group: String,
     pub kept_model_count: usize,
     pub masked_secret: String,
     pub kept_models: Vec<String>,
@@ -68,6 +69,8 @@ pub struct RequestLogView {
     pub latency_ms: u64,
     pub succeeded: bool,
     pub failure_reason: Option<String>,
+    /// 本次调用是否命中会话粘性
+    pub affinity_hit: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

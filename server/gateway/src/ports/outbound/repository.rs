@@ -33,6 +33,22 @@ pub trait CredentialGroupRepository: Send + Sync {
     async fn find(&self, id: &GroupId) -> Result<Option<CredentialGroup>, PortError>;
     async fn list_all(&self) -> Result<Vec<CredentialGroup>, PortError>;
     async fn save(&self, group: &CredentialGroup) -> Result<(), PortError>;
+    async fn delete(&self, id: &GroupId) -> Result<(), PortError>;
+}
+
+/// 会话与凭证的绑定
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SessionBinding {
+    pub session_id: String,
+    pub credential_id: CredentialId,
+    pub expires_at: DateTime<Utc>,
+}
+
+#[async_trait]
+pub trait SessionBindingRepository: Send + Sync {
+    async fn find(&self, session_id: &str) -> Result<Option<SessionBinding>, PortError>;
+    async fn save(&self, binding: &SessionBinding) -> Result<(), PortError>;
+    async fn remove(&self, session_id: &str) -> Result<(), PortError>;
 }
 
 #[async_trait]
@@ -59,7 +75,7 @@ pub struct UpstreamCall {
     pub secret: Secret,
     pub protocol: crate::domain::values::Protocol,
     pub upstream_model: UpstreamModelId,
-    pub base_url: Option<String>,
+    /// 分层超时：连接、首字节、单次读各自不得超过该秒数
     pub timeout_seconds: u64,
     pub body: Vec<u8>,
     pub stream: bool,
@@ -74,6 +90,8 @@ pub struct UpstreamResponse {
     pub retry_after_seconds: Option<u64>,
     /// 配额耗尽且不可重试
     pub quota_exhausted: bool,
+    /// 上游水位头，原样透传给客户端
+    pub rate_limit_headers: Vec<(String, String)>,
 }
 
 /// 换取的订阅令牌
