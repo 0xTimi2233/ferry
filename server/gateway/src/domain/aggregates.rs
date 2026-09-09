@@ -6,7 +6,8 @@ use crate::domain::errors::{CatalogError, CredentialError, SettingsError};
 use crate::domain::events::DomainEvent;
 use crate::domain::values::{
     AliasName, AliasTargetId, CredentialId, GroupId, HealthStatus, InvalidValue, Money, Priority,
-    Protocol, Provider, Secret, SelectionStrategy, TokenUsage, UpstreamModelId, Weight,
+    Protocol, Provider, Secret, SelectionStrategy, SupportedUpstreams, TokenUsage, UpstreamModelId,
+    Weight,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -25,6 +26,11 @@ pub enum CredentialKind {
 impl CredentialKind {
     pub fn is_subscription(&self) -> bool {
         matches!(self, Self::Subscription { .. })
+    }
+
+    /// 订阅额度不单独计价，金额只按密钥凭证累计
+    pub fn charges_cost(&self) -> bool {
+        matches!(self, Self::ApiKey { .. })
     }
 }
 
@@ -51,6 +57,11 @@ impl Credential {
         provider: Provider,
         secret: Secret,
     ) -> Result<(Self, DomainEvent), CredentialError> {
+        if !SupportedUpstreams::contains(&provider) {
+            return Err(CredentialError::UpstreamUnsupported(
+                provider.as_str().to_string(),
+            ));
+        }
         let name = name.into();
         if name.trim().is_empty() {
             return Err(CredentialError::Invalid(InvalidValue::Blank("名称")));
@@ -87,6 +98,11 @@ impl Credential {
         expires_at: DateTime<Utc>,
         account: Option<String>,
     ) -> Result<(Self, DomainEvent), CredentialError> {
+        if !SupportedUpstreams::contains(&provider) {
+            return Err(CredentialError::UpstreamUnsupported(
+                provider.as_str().to_string(),
+            ));
+        }
         if !provider.supports_subscription() {
             return Err(CredentialError::UpstreamLacksSubscription(
                 provider.as_str().to_string(),
@@ -177,10 +193,23 @@ impl Credential {
         }
     }
 
-    /// 上游清单变化时，已保留但不再提供的模型被剔除
-    pub fn record_offered_models(&mut self, models: Vec<UpstreamModelId>) {
-        self.kept_models.retain(|m| models.contains(m));
+    /// 上游清单变化时，已保留但不再提供的模型被剔除；清空则拒绝并保持原集合
+    pub fn record_offered_models(
+        &mut self,
+        models: Vec<UpstreamModelId>,
+    ) -> Result<(), CredentialError> {
+        let retained: Vec<UpstreamModelId> = self
+            .kept_models
+            .iter()
+            .filter(|m| models.contains(m))
+            .cloned()
+            .collect();
+        if !self.kept_models.is_empty() && retained.is_empty() {
+            return Err(CredentialError::EmptySelection);
+        }
+        self.kept_models = retained;
         self.offered_models = models;
+        Ok(())
     }
 
     pub fn update_kept_models(
@@ -205,6 +234,14 @@ impl Credential {
         } else {
             Err(CredentialError::NotAvailable(self.name.clone()))
         }
+    }
+
+    /// 名称唯一性需要全量视野，由用例层查重后交给聚合定音
+    pub fn ensure_name_available(&self, taken: bool) -> Result<(), CredentialError> {
+        if taken {
+            return Err(CredentialError::Duplicated(self.name.clone()));
+        }
+        Ok(())
     }
 
     pub fn disable(&mut self) -> DomainEvent {

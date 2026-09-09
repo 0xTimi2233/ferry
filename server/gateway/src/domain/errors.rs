@@ -1,6 +1,6 @@
 //! 领域错误
 
-use crate::domain::values::InvalidValue;
+use crate::domain::values::{AuthorizationError, InvalidValue};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CredentialError {
@@ -10,7 +10,6 @@ pub enum CredentialError {
     AuthorizationExpired,
     AuthorizationInvalid,
     NotAvailable(String),
-    Referenced(String),
     NotFound(String),
     ModelNotOffered(String),
     EmptySelection,
@@ -26,7 +25,6 @@ impl std::fmt::Display for CredentialError {
             Self::AuthorizationExpired => f.write_str("授权已过期"),
             Self::AuthorizationInvalid => f.write_str("授权状态无效"),
             Self::NotAvailable(name) => write!(f, "凭证 {name} 当前不可用"),
-            Self::Referenced(name) => write!(f, "凭证 {name} 仍被别名引用"),
             Self::NotFound(name) => write!(f, "凭证 {name} 不存在"),
             Self::ModelNotOffered(name) => write!(f, "模型 {name} 不在上游清单中"),
             Self::EmptySelection => f.write_str("至少保留一个模型"),
@@ -36,6 +34,15 @@ impl std::fmt::Display for CredentialError {
 }
 
 impl std::error::Error for CredentialError {}
+
+impl From<AuthorizationError> for CredentialError {
+    fn from(value: AuthorizationError) -> Self {
+        match value {
+            AuthorizationError::Expired => Self::AuthorizationExpired,
+            AuthorizationError::Invalid => Self::AuthorizationInvalid,
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CatalogError {

@@ -261,6 +261,65 @@ impl Money {
     }
 }
 
+/// 支持的上游清单
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SupportedUpstreams;
+
+impl SupportedUpstreams {
+    const NAMES: [&'static str; 4] = ["DeepSeek", "OpenAI", "Anthropic", "Gemini"];
+
+    pub fn names() -> &'static [&'static str] {
+        &Self::NAMES
+    }
+
+    pub fn contains(provider: &Provider) -> bool {
+        Self::NAMES.contains(&provider.as_str())
+    }
+}
+
+/// 待授权状态，发起与完成订阅授权两个用例共享
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PendingAuthorization {
+    pub state: String,
+    pub code_verifier: String,
+    pub provider: String,
+    pub expires_at: chrono::DateTime<chrono::Utc>,
+}
+
+impl PendingAuthorization {
+    /// 校验状态标识与有效期，通过后返回自身供消费
+    pub fn consume(
+        self,
+        state: &str,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> Result<Self, AuthorizationError> {
+        if self.state != state {
+            return Err(AuthorizationError::Invalid);
+        }
+        if self.expires_at <= now {
+            return Err(AuthorizationError::Expired);
+        }
+        Ok(self)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AuthorizationError {
+    Expired,
+    Invalid,
+}
+
+impl std::fmt::Display for AuthorizationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Expired => f.write_str("授权已过期"),
+            Self::Invalid => f.write_str("授权状态无效"),
+        }
+    }
+}
+
+impl std::error::Error for AuthorizationError {}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InvalidValue {
     Blank(&'static str),

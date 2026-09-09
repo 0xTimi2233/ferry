@@ -123,7 +123,7 @@ fn should_keep_only_models_offered_by_upstream() -> TestResult {
         model("deepseek-chat")?,
         model("deepseek-reasoner")?,
         model("deepseek-coder")?,
-    ]);
+    ])?;
 
     credential.update_kept_models(vec![model("deepseek-chat")?, model("deepseek-coder")?])?;
 
@@ -134,7 +134,7 @@ fn should_keep_only_models_offered_by_upstream() -> TestResult {
 #[test]
 fn should_reject_empty_model_selection() -> TestResult {
     let mut credential = api_key("deepseek-main")?;
-    credential.record_offered_models(vec![model("deepseek-chat")?]);
+    credential.record_offered_models(vec![model("deepseek-chat")?])?;
 
     let result = credential.update_kept_models(vec![]);
 
@@ -145,7 +145,7 @@ fn should_reject_empty_model_selection() -> TestResult {
 #[test]
 fn should_reject_model_not_offered_by_upstream() -> TestResult {
     let mut credential = api_key("deepseek-main")?;
-    credential.record_offered_models(vec![model("deepseek-chat")?]);
+    credential.record_offered_models(vec![model("deepseek-chat")?])?;
 
     let result = credential.update_kept_models(vec![model("gpt-5")?]);
 
@@ -159,10 +159,10 @@ fn should_reject_model_not_offered_by_upstream() -> TestResult {
 #[test]
 fn should_drop_kept_models_no_longer_offered() -> TestResult {
     let mut credential = api_key("deepseek-main")?;
-    credential.record_offered_models(vec![model("deepseek-chat")?, model("deepseek-coder")?]);
+    credential.record_offered_models(vec![model("deepseek-chat")?, model("deepseek-coder")?])?;
     credential.update_kept_models(vec![model("deepseek-chat")?, model("deepseek-coder")?])?;
 
-    credential.record_offered_models(vec![model("deepseek-chat")?]);
+    credential.record_offered_models(vec![model("deepseek-chat")?])?;
 
     assert_eq!(credential.kept_models(), &[model("deepseek-chat")?]);
     Ok(())
@@ -237,6 +237,67 @@ fn should_reject_fetch_when_credential_unavailable() -> TestResult {
     credential.mark_cooling("429", Utc::now() + Duration::minutes(1));
 
     assert!(credential.ensure_available_for_fetch().is_err());
+    Ok(())
+}
+
+#[test]
+fn should_reject_duplicated_credential_name() -> TestResult {
+    let credential = api_key("deepseek-main")?;
+
+    assert_eq!(
+        credential.ensure_name_available(true),
+        Err(CredentialError::Duplicated("deepseek-main".to_string()))
+    );
+    assert!(credential.ensure_name_available(false).is_ok());
+    Ok(())
+}
+
+#[test]
+fn should_reject_offered_models_that_empty_kept_set() -> TestResult {
+    let mut credential = api_key("deepseek-main")?;
+    credential.record_offered_models(vec![model("deepseek-chat")?])?;
+    credential.update_kept_models(vec![model("deepseek-chat")?])?;
+
+    let result = credential.record_offered_models(vec![model("deepseek-reasoner")?]);
+
+    assert_eq!(result, Err(CredentialError::EmptySelection));
+    assert_eq!(credential.kept_models(), &[model("deepseek-chat")?]);
+    Ok(())
+}
+
+#[test]
+fn should_charge_cost_only_for_api_key_credentials() -> TestResult {
+    let key = api_key("deepseek-main")?;
+    let sub = subscription(4)?;
+
+    assert!(key.kind().charges_cost());
+    assert!(!sub.kind().charges_cost());
+    Ok(())
+}
+
+#[test]
+fn should_consume_pending_authorization_once() -> TestResult {
+    let pending = PendingAuthorization {
+        state: "state-0001".to_string(),
+        code_verifier: "verifier".to_string(),
+        provider: "OpenAI".to_string(),
+        expires_at: Utc::now() + Duration::minutes(10),
+    };
+
+    assert!(pending.clone().consume("state-0001", Utc::now()).is_ok());
+    assert_eq!(
+        pending.clone().consume("state-9999", Utc::now()),
+        Err(AuthorizationError::Invalid)
+    );
+
+    let expired = PendingAuthorization {
+        expires_at: Utc::now() - Duration::minutes(1),
+        ..pending
+    };
+    assert_eq!(
+        expired.consume("state-0001", Utc::now()),
+        Err(AuthorizationError::Expired)
+    );
     Ok(())
 }
 

@@ -4,18 +4,11 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 
 use crate::domain::aggregates::{Alias, Credential, CredentialGroup, Settings, UsageRecord};
-use crate::domain::values::{AliasName, CredentialId, GroupId, Secret, UpstreamModelId};
+use crate::domain::values::{
+    AliasName, CredentialId, GroupId, PendingAuthorization, Secret, UpstreamModelId,
+};
 
 use super::PortError;
-
-/// 待授权状态，发起与完成订阅授权两个用例共享
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PendingAuthorization {
-    pub state: String,
-    pub code_verifier: String,
-    pub provider: String,
-    pub expires_at: DateTime<Utc>,
-}
 
 #[async_trait]
 pub trait CredentialRepository: Send + Sync {
