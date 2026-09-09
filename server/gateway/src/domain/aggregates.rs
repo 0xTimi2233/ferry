@@ -397,6 +397,7 @@ pub struct CredentialGroup {
     id: GroupId,
     provider: Provider,
     strategy: SelectionStrategy,
+    max_concurrency: u32,
 }
 
 impl CredentialGroup {
@@ -406,7 +407,16 @@ impl CredentialGroup {
             id: GroupId::for_provider(&provider),
             provider,
             strategy: SelectionStrategy::default(),
+            max_concurrency: 4,
         }
+    }
+
+    pub fn max_concurrency(&self) -> u32 {
+        self.max_concurrency
+    }
+
+    pub fn set_max_concurrency(&mut self, value: u32) {
+        self.max_concurrency = value;
     }
 
     pub fn id(&self) -> &GroupId {

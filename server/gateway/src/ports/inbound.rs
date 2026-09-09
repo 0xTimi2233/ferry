@@ -23,7 +23,7 @@ pub enum UseCaseError {
     /// 全部凭证不可用，恢复时间取其中最晚
     AllCredentialsUnavailable {
         attempted: Vec<String>,
-        retry_after_seconds: Option<u64>,
+        recover_at: Option<chrono::DateTime<chrono::Utc>>,
     },
     /// 资源不存在
     NotFound(String),
@@ -86,9 +86,12 @@ impl From<RelayError> for UseCaseError {
         match value {
             RelayError::Unauthorized => Self::Unauthorized,
             RelayError::AliasNotFound(name) => Self::NotFound(format!("模型 {name}")),
-            RelayError::AllUnavailable { attempted, .. } => Self::AllCredentialsUnavailable {
+            RelayError::AllUnavailable {
                 attempted,
-                retry_after_seconds: None,
+                recover_at,
+            } => Self::AllCredentialsUnavailable {
+                attempted,
+                recover_at,
             },
             other => Self::Domain(other.to_string()),
         }

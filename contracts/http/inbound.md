@@ -52,7 +52,7 @@
 | InvalidInput | 400 | — |
 | Unauthorized | 401 | — |
 | NotFound | 404 | — |
-| ConcurrencyLimited | 429 | `Retry-After: 1` |
-| AllCredentialsUnavailable | 503 | `Retry-After` 为最晚恢复时间距当前的秒数 |
+| ConcurrencyLimited | 429 | `Retry-After` 为变体给出的秒数 |
+| AllCredentialsUnavailable | 503 | `Retry-After` 为 `recover_at` 距当前的秒数，为 None 时不带该头 |
 | Domain，其余业务规则拒绝 | 409 | — |
 | Port | 502 | — |
