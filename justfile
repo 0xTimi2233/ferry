@@ -36,7 +36,14 @@ audit-server:
 sync-labels repo:
     #!/usr/bin/env bash
     set -euo pipefail
-    jq -c '.[]' "{{justfile_directory()}}/.github/labels.json" | while read -r item; do
+    manifest="{{justfile_directory()}}/.github/labels.json"
+    wanted=$(mktemp)
+    jq -r '.[].name' "$manifest" | sort > "$wanted"
+    gh label list --repo "{{repo}}" --json name --jq '.[].name' | sort | comm -13 "$wanted" - | while read -r name; do
+        gh label delete "$name" --repo "{{repo}}" --yes
+    done
+    rm -f "$wanted"
+    jq -c '.[]' "$manifest" | while read -r item; do
         name=$(echo "$item" | jq -r .name)
         color=$(echo "$item" | jq -r .color)
         desc=$(echo "$item" | jq -r .description)
