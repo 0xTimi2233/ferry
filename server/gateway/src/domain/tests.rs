@@ -34,7 +34,6 @@ fn group_id() -> GroupId {
 fn api_key(name: &str) -> Result<Credential, Box<dyn std::error::Error>> {
     let (credential, _) = Credential::register_api_key(
         CredentialId::new("c1"),
-        group_id(),
         name,
         provider("DeepSeek")?,
         secret("sk-test-0001")?,
@@ -45,7 +44,6 @@ fn api_key(name: &str) -> Result<Credential, Box<dyn std::error::Error>> {
 fn subscription(expires_in_hours: i64) -> Result<Credential, Box<dyn std::error::Error>> {
     let (credential, _) = Credential::register_subscription(
         CredentialId::new("c2"),
-        GroupId::new("g-openai"),
         "chatgpt-plus",
         provider("OpenAI")?,
         secret("access-token")?,
@@ -69,7 +67,6 @@ fn target(id: &str, group: GroupId, model_name: &str) -> Result<AliasTarget, Inv
 fn should_register_api_key_credential_as_ready() -> TestResult {
     let (credential, event) = Credential::register_api_key(
         CredentialId::new("c1"),
-        group_id(),
         "deepseek-main",
         provider("DeepSeek")?,
         secret("sk-test-0001")?,
@@ -86,7 +83,6 @@ fn should_register_api_key_credential_as_ready() -> TestResult {
 fn should_reject_blank_credential_name() -> TestResult {
     let result = Credential::register_api_key(
         CredentialId::new("c1"),
-        group_id(),
         "   ",
         provider("DeepSeek")?,
         secret("sk-test-0001")?,
@@ -100,7 +96,6 @@ fn should_reject_blank_credential_name() -> TestResult {
 fn should_reject_subscription_for_unsupported_upstream() -> TestResult {
     let result = Credential::register_subscription(
         CredentialId::new("c1"),
-        group_id(),
         "deepseek-main",
         provider("DeepSeek")?,
         secret("access")?,
@@ -302,6 +297,43 @@ fn should_consume_pending_authorization_once() -> TestResult {
 }
 
 #[test]
+fn should_recover_from_cooldown_after_recover_at() -> TestResult {
+    let mut credential = api_key("deepseek-main")?;
+    let recover_at = Utc::now() + Duration::minutes(1);
+    credential.mark_cooling("429", recover_at);
+
+    assert!(credential.recover_from_cooldown(Utc::now()).is_none());
+
+    let event = credential.recover_from_cooldown(recover_at + Duration::seconds(1));
+
+    assert!(event.is_some());
+    assert!(credential.is_available());
+    Ok(())
+}
+
+#[test]
+fn should_derive_group_id_from_provider() -> TestResult {
+    assert_eq!(
+        GroupId::for_provider(&provider("DeepSeek")?).as_str(),
+        "g-deepseek"
+    );
+    assert_eq!(
+        GroupId::for_provider(&provider("OpenAI")?).as_str(),
+        "g-openai"
+    );
+    Ok(())
+}
+
+#[test]
+fn should_classify_retryable_status_codes() -> TestResult {
+    assert!(RetryPolicy::is_retryable_status(429));
+    assert!(RetryPolicy::is_retryable_status(503));
+    assert!(!RetryPolicy::is_retryable_status(400));
+    assert_eq!(RetryPolicy::default().max_rounds, 3);
+    Ok(())
+}
+
+#[test]
 fn should_publish_credential_deleted_event() -> TestResult {
     let credential = api_key("deepseek-backup")?;
 
@@ -387,7 +419,7 @@ fn should_report_alias_empty_after_last_target_removed() -> TestResult {
 fn should_reject_reference_to_missing_group() -> TestResult {
     let result = ensure_alias_can_reference(None, &GroupId::new("g-missing"));
 
-    assert!(matches!(result, Err(CatalogError::CredentialNotFound(_))));
+    assert!(matches!(result, Err(CatalogError::GroupNotFound(_))));
     Ok(())
 }
 

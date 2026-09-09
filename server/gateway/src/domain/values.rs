@@ -107,6 +107,11 @@ impl GroupId {
         Self(raw.into())
     }
 
+    /// 账号组按上游划分，标识由上游派生
+    pub fn for_provider(provider: &Provider) -> Self {
+        Self(format!("g-{}", provider.as_str().to_lowercase()))
+    }
+
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -214,6 +219,39 @@ impl HealthStatus {
 
     pub fn is_failed(&self) -> bool {
         matches!(self, Self::Failed { .. })
+    }
+
+    /// 冷却到期后恢复可用
+    pub fn recovered_after_cooldown(&self, now: chrono::DateTime<chrono::Utc>) -> Self {
+        match self {
+            Self::Cooling { recover_at, .. } if *recover_at <= now => Self::Ready,
+            other => other.clone(),
+        }
+    }
+}
+
+/// 重试策略，描述失败后如何换凭证
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RetryPolicy {
+    /// 追加的重试轮数
+    pub max_rounds: u32,
+    /// 轮间最长等待秒数，超过则放弃
+    pub max_wait_seconds: u64,
+}
+
+impl Default for RetryPolicy {
+    fn default() -> Self {
+        Self {
+            max_rounds: 3,
+            max_wait_seconds: 30,
+        }
+    }
+}
+
+impl RetryPolicy {
+    /// 该状态码是否可重试
+    pub fn is_retryable_status(status: u16) -> bool {
+        matches!(status, 403 | 408 | 429 | 500 | 502 | 503 | 504)
     }
 }
 

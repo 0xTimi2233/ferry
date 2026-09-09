@@ -52,7 +52,6 @@ pub struct Credential {
 impl Credential {
     pub fn register_api_key(
         id: CredentialId,
-        group: GroupId,
         name: impl Into<String>,
         provider: Provider,
         secret: Secret,
@@ -62,6 +61,7 @@ impl Credential {
                 provider.as_str().to_string(),
             ));
         }
+        let group = GroupId::for_provider(&provider);
         let name = name.into();
         if name.trim().is_empty() {
             return Err(CredentialError::Invalid(InvalidValue::Blank("名称")));
@@ -90,7 +90,6 @@ impl Credential {
     #[allow(clippy::too_many_arguments)]
     pub fn register_subscription(
         id: CredentialId,
-        group: GroupId,
         name: impl Into<String>,
         provider: Provider,
         access_token: Secret,
@@ -108,6 +107,7 @@ impl Credential {
                 provider.as_str().to_string(),
             ));
         }
+        let group = GroupId::for_provider(&provider);
         let name = name.into();
         if name.trim().is_empty() {
             return Err(CredentialError::Invalid(InvalidValue::Blank("名称")));
@@ -271,6 +271,16 @@ impl Credential {
             reason: reason.into(),
         };
         self.health_changed_event()
+    }
+
+    /// 冷却到期后恢复可用，返回事件
+    pub fn recover_from_cooldown(&mut self, now: DateTime<Utc>) -> Option<DomainEvent> {
+        let recovered = self.health.recovered_after_cooldown(now);
+        if matches!(recovered, HealthStatus::Ready) && !self.health.is_available() {
+            self.health = recovered;
+            return Some(self.health_changed_event());
+        }
+        None
     }
 
     fn health_changed_event(&self) -> DomainEvent {
@@ -595,9 +605,7 @@ pub fn ensure_alias_can_reference(
     group_id: &GroupId,
 ) -> Result<(), CatalogError> {
     match group {
-        None => Err(CatalogError::CredentialNotFound(
-            group_id.as_str().to_string(),
-        )),
+        None => Err(CatalogError::GroupNotFound(group_id.as_str().to_string())),
         Some(_) => Ok(()),
     }
 }
