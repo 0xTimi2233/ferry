@@ -20,6 +20,13 @@ Feature: 选择保留的模型
     Then 更新被拒绝且返回至少保留一个模型
     And 凭证保留的模型不变
 
+  @wip @credential-update_credential_models_narrowed
+  Scenario: 上游清单收窄且已保留模型全部失效时拒绝
+    Given 凭证 "deepseek-main" 保留 "deepseek-chat"
+    When 上游最新清单只剩 "deepseek-reasoner"
+    Then 刷新被拒绝且返回至少保留一个模型
+    And 凭证保留的模型仍为 "deepseek-chat"
+
   @wip @credential-update_credential_models_not_offered
   Scenario: 提交上游未提供的模型时拒绝
     Given 凭证 "deepseek-main" 的上游未提供 "gpt-5"

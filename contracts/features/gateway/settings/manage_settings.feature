@@ -25,7 +25,8 @@ Feature: 管理访问密钥与服务端设置
   Scenario: 重新生成访问密钥
     Given 已存在一个访问密钥
     When 重新生成访问密钥
-    Then 返回新的访问密钥明文一次
+    Then 响应中的新密钥字段非空且长度为 32 个字符
+    And 再次查询设置时该字段为空
     And 旧密钥立即失效
 
   @wip @settings-manage_settings_affinity

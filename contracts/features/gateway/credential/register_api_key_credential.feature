@@ -31,13 +31,6 @@ Feature: 注册密钥凭证
     Then 注册被拒绝且返回名称不能为空
     And 不创建新的凭证
 
-  @wip @credential-register_api_key_credential_group_removed
-  Scenario: 组内最后一个凭证被删除时移除账号组
-    Given 账号组 "g-deepseek" 只包含凭证 "deepseek-backup"
-    When 删除凭证 "deepseek-backup"
-    Then 账号组 "g-deepseek" 被移除
-    And 发布领域事件 CredentialGroupRemoved 供别名清理目标
-
   @wip @credential-register_api_key_credential_unknown_upstream
   Scenario: 上游不在支持范围内时拒绝注册
     Given 上游 "UnknownVendor" 未被支持

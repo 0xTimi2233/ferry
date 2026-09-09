@@ -46,9 +46,18 @@ Feature: 发起模型调用
   @wip @relay-invoke_model_all_unavailable
   Scenario: 全部凭证不可用时返回统一错误
     Given 别名 "deepseek-chat" 的全部凭证均处于冷却状态
+    And 各凭证的恢复时间分别为 T1 与 T2，其中 T1 早于 T2
     When 客户端请求该别名
-    Then 请求被拒绝且错误信息包含尝试过的凭证清单
-    And 错误信息包含预计恢复时间
+    Then 请求被拒绝且错误信息包含尝试过的凭证名称清单
+    And 错误信息里的恢复时间取其中最晚的 T2
+
+  @wip @relay-invoke_model_concurrency_limited
+  Scenario: 并发达到上限时快速失败
+    Given 账号组 "g-deepseek" 的在途并发上限为 2
+    And 已有两次调用在途
+    When 客户端再发起一次请求
+    Then 请求被拒绝且返回并发已满
+    And 不向上游发起请求
 
   @wip @relay-invoke_model_hard_quota
   Scenario: 凭证硬配额耗尽时不再重试
@@ -91,9 +100,9 @@ Feature: 发起模型调用
   @wip @relay-invoke_model_malformed_upstream
   Scenario: 上游返回不可解析响应时返回统一错误
     Given 别名 "deepseek-chat" 存在可用凭证
-    And 上游返回无法解析的响应体
+    And 上游 "DeepSeek" 返回无法解析的响应体
     When 客户端请求该别名
-    Then 请求失败且错误信息包含上游来源
+    Then 请求失败且错误信息里的上游字段为 "DeepSeek"
     And 用量记录标记为失败
 
   @wip @relay-invoke_model_stream_interrupted
