@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.head.sha || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: 检查与测试
+    uses: ./.github/workflows/checks.yaml
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  security:
+    name: 安全审计
+    permissions:
+      contents: read
+      security-events: write
+    uses: ./.github/workflows/security.yaml

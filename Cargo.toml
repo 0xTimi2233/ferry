@@ -1,0 +1,55 @@
+[workspace]
+resolver = "3"
+members = [
+    "server/shared_kernel",
+    "server/app",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98"
+publish = false
+license = "MIT"
+repository = "https://github.com/0xTimi2233/ferry"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+dbg_macro = "deny"
+todo = "deny"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.dist]
+inherits = "release"
+
+[workspace.metadata.dist]
+allow-dirty = ["ci"]
+cargo-dist-version = "0.32.0"
+ci = "github"
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-apple-darwin",
+    "aarch64-apple-darwin",
+    "x86_64-pc-windows-msvc",
+]
+installers = ["shell", "powershell"]
+
+[workspace.metadata.dist.github-custom-runners]
+global = "ubuntu-latest"
+x86_64-unknown-linux-gnu = "ubuntu-latest"
+aarch64-unknown-linux-gnu = "ubuntu-latest"
+x86_64-apple-darwin = "macos-latest"
+aarch64-apple-darwin = "macos-latest"
+x86_64-pc-windows-msvc = "windows-latest"
