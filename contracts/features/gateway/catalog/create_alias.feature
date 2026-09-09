@@ -23,6 +23,13 @@ Feature: 创建别名
     Then 该别名包含两个目标
     And 两个目标的权重与优先级可分别设置
 
+  @wip @catalog-create_alias_target_missing
+  Scenario: 追加目标时别名不存在
+    Given 不存在名为 "no-such-alias" 的别名
+    When 为该别名追加账号组 "g-deepseek" 与上游模型 "deepseek-chat"
+    Then 追加被拒绝且返回别名不存在
+    And 不创建新的别名
+
   @wip @catalog-create_alias_duplicated
   Scenario: 别名已存在时拒绝创建
     Given 别名 "deepseek-chat" 已存在

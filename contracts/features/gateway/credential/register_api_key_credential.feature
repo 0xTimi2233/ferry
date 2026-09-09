@@ -12,6 +12,7 @@ Feature: 注册密钥凭证
     Given 不存在名为 "deepseek-main" 的凭证
     When 提交名称 "deepseek-main"、上游 "DeepSeek" 与密钥 "sk-test-0001"
     Then 凭证 "deepseek-main" 被创建且健康状态为可用
+    And 凭证自动归入该上游的账号组，组不存在时一并创建
     And 凭证的密钥以密文形式存储，读取凭证详情时只返回掩码
     And 发布领域事件 CredentialRegistered
 
@@ -29,6 +30,13 @@ Feature: 注册密钥凭证
     When 提交名称 ""、上游 "DeepSeek" 与密钥 "sk-test-0003"
     Then 注册被拒绝且返回名称不能为空
     And 不创建新的凭证
+
+  @wip @credential-register_api_key_credential_group_removed
+  Scenario: 组内最后一个凭证被删除时移除账号组
+    Given 账号组 "g-deepseek" 只包含凭证 "deepseek-backup"
+    When 删除凭证 "deepseek-backup"
+    Then 账号组 "g-deepseek" 被移除
+    And 发布领域事件 CredentialGroupRemoved 供别名清理目标
 
   @wip @credential-register_api_key_credential_unknown_upstream
   Scenario: 上游不在支持范围内时拒绝注册
