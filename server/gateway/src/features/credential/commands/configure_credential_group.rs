@@ -4,5 +4,6 @@
 #[derive(Debug, Clone)]
 pub struct ConfigureCredentialGroup {
     pub group_id: String,
-    pub strategy: String,
+    pub strategy: Option<String>,
+    pub max_concurrency: Option<u32>,
 }

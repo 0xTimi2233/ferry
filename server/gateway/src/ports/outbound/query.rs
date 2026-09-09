@@ -49,6 +49,7 @@ pub struct CredentialGroupView {
     pub id: String,
     pub provider: String,
     pub strategy: String,
+    pub max_concurrency: u32,
     pub credential_count: usize,
 }
 

@@ -20,6 +20,12 @@ Feature: 查询请求日志
     When 按别名 "deepseek-chat" 筛选
     Then 只返回该别名的记录
 
+  @wip @metering-query_request_logs_by_credential
+  Scenario: 按凭证筛选
+    Given 存在涉及两个凭证的请求记录
+    When 按凭证 "deepseek-main" 筛选
+    Then 只返回该凭证的记录
+
   @wip @metering-query_request_logs_only_failed
   Scenario: 只看失败记录
     Given 存在成功与失败的请求记录

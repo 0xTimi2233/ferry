@@ -71,6 +71,7 @@ impl std::error::Error for CatalogError {}
 pub enum RelayError {
     AliasNotFound(String),
     Unauthorized,
+    /// 全部凭证不可用，恢复时间取各凭证中的最晚者
     AllUnavailable {
         attempted: Vec<String>,
         recover_at: Option<chrono::DateTime<chrono::Utc>>,

@@ -416,7 +416,7 @@ impl CredentialGroup {
     }
 
     pub fn set_max_concurrency(&mut self, value: u32) {
-        self.max_concurrency = value;
+        self.max_concurrency = value.max(1);
     }
 
     pub fn id(&self) -> &GroupId {
