@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 
 use crate::domain::aggregates::Granularity;
-use crate::domain::values::{CredentialId, HealthStatus, Money, PoolName, Protocol, TokenUsage};
+use crate::domain::values::{AliasName, CredentialId, HealthStatus, Money, Protocol, TokenUsage};
 
 use super::PortError;
 
@@ -28,20 +28,27 @@ pub enum CredentialKindView {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UpstreamRefView {
+pub struct AliasTargetView {
+    pub group: String,
     pub upstream: String,
     pub upstream_model: String,
     pub protocol: Protocol,
-    pub credential_name: String,
     pub weight: u32,
     pub priority: u16,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AccountPoolView {
-    pub name: PoolName,
+pub struct AliasView {
+    pub name: AliasName,
+    pub targets: Vec<AliasTargetView>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CredentialGroupView {
+    pub id: String,
+    pub provider: String,
     pub strategy: String,
-    pub refs: Vec<UpstreamRefView>,
+    pub credential_count: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -55,7 +62,7 @@ pub struct UsageBucketView {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RequestLogView {
     pub at: DateTime<Utc>,
-    pub pool: String,
+    pub alias: String,
     pub credential_name: String,
     pub tokens: TokenUsage,
     pub latency_ms: u64,
@@ -90,8 +97,13 @@ pub trait CredentialQuery: Send + Sync {
 }
 
 #[async_trait]
-pub trait AccountPoolQuery: Send + Sync {
-    async fn list(&self) -> Result<Vec<AccountPoolView>, PortError>;
+pub trait AliasQuery: Send + Sync {
+    async fn list(&self) -> Result<Vec<AliasView>, PortError>;
+}
+
+#[async_trait]
+pub trait CredentialGroupQuery: Send + Sync {
+    async fn list(&self) -> Result<Vec<CredentialGroupView>, PortError>;
 }
 
 #[async_trait]

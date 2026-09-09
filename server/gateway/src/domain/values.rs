@@ -16,13 +16,13 @@ impl CredentialId {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct PoolName(String);
+pub struct AliasName(String);
 
-impl PoolName {
+impl AliasName {
     pub fn new(raw: impl Into<String>) -> Result<Self, InvalidValue> {
         let raw = raw.into();
         if raw.trim().is_empty() {
-            return Err(InvalidValue::Blank("账号池"));
+            return Err(InvalidValue::Blank("别名"));
         }
         Ok(Self(raw))
     }
@@ -87,9 +87,22 @@ impl UpstreamModelId {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct UpstreamRefId(String);
+pub struct AliasTargetId(String);
 
-impl UpstreamRefId {
+impl AliasTargetId {
+    pub fn new(raw: impl Into<String>) -> Self {
+        Self(raw.into())
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct GroupId(String);
+
+impl GroupId {
     pub fn new(raw: impl Into<String>) -> Self {
         Self(raw.into())
     }

@@ -3,8 +3,8 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 
-use crate::domain::aggregates::{AccountPool, Credential, Settings, UsageRecord};
-use crate::domain::values::{CredentialId, PoolName, Secret, UpstreamModelId};
+use crate::domain::aggregates::{Alias, Credential, CredentialGroup, Settings, UsageRecord};
+use crate::domain::values::{AliasName, CredentialId, GroupId, Secret, UpstreamModelId};
 
 use super::PortError;
 
@@ -27,12 +27,19 @@ pub trait CredentialRepository: Send + Sync {
 }
 
 #[async_trait]
-pub trait AccountPoolRepository: Send + Sync {
-    async fn find(&self, name: &PoolName) -> Result<Option<AccountPool>, PortError>;
-    async fn list_all(&self) -> Result<Vec<AccountPool>, PortError>;
-    async fn save(&self, pool: &AccountPool) -> Result<(), PortError>;
-    async fn delete(&self, name: &PoolName) -> Result<(), PortError>;
-    async fn count_refs_to(&self, credential_id: &CredentialId) -> Result<u64, PortError>;
+pub trait AliasRepository: Send + Sync {
+    async fn find(&self, name: &AliasName) -> Result<Option<Alias>, PortError>;
+    async fn list_all(&self) -> Result<Vec<Alias>, PortError>;
+    async fn save(&self, alias: &Alias) -> Result<(), PortError>;
+    async fn delete(&self, name: &AliasName) -> Result<(), PortError>;
+    async fn count_targets_to(&self, group: &GroupId) -> Result<u64, PortError>;
+}
+
+#[async_trait]
+pub trait CredentialGroupRepository: Send + Sync {
+    async fn find(&self, id: &GroupId) -> Result<Option<CredentialGroup>, PortError>;
+    async fn list_all(&self) -> Result<Vec<CredentialGroup>, PortError>;
+    async fn save(&self, group: &CredentialGroup) -> Result<(), PortError>;
 }
 
 #[async_trait]

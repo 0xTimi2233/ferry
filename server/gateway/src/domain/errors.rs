@@ -26,7 +26,7 @@ impl std::fmt::Display for CredentialError {
             Self::AuthorizationExpired => f.write_str("授权已过期"),
             Self::AuthorizationInvalid => f.write_str("授权状态无效"),
             Self::NotAvailable(name) => write!(f, "凭证 {name} 当前不可用"),
-            Self::Referenced(name) => write!(f, "凭证 {name} 仍被账号池引用"),
+            Self::Referenced(name) => write!(f, "凭证 {name} 仍被别名引用"),
             Self::NotFound(name) => write!(f, "凭证 {name} 不存在"),
             Self::ModelNotOffered(name) => write!(f, "模型 {name} 不在上游清单中"),
             Self::EmptySelection => f.write_str("至少保留一个模型"),
@@ -49,8 +49,8 @@ pub enum CatalogError {
 impl std::fmt::Display for CatalogError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Duplicated(name) => write!(f, "账号池 {name} 已存在"),
-            Self::NotFound(name) => write!(f, "账号池 {name} 不存在"),
+            Self::Duplicated(name) => write!(f, "别名 {name} 已存在"),
+            Self::NotFound(name) => write!(f, "别名 {name} 不存在"),
             Self::CredentialNotFound(id) => write!(f, "凭证 {id} 不存在"),
             Self::CredentialUnavailable(name) => write!(f, "凭证 {name} 不可用"),
             Self::Invalid(inner) => inner.fmt(f),

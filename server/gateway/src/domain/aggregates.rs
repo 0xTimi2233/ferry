@@ -5,8 +5,8 @@ use chrono::{DateTime, Utc};
 use crate::domain::errors::{CatalogError, CredentialError, SettingsError};
 use crate::domain::events::DomainEvent;
 use crate::domain::values::{
-    CredentialId, HealthStatus, InvalidValue, Money, PoolName, Priority, Protocol, Provider,
-    Secret, SelectionStrategy, TokenUsage, UpstreamModelId, UpstreamRefId, Weight,
+    AliasName, AliasTargetId, CredentialId, GroupId, HealthStatus, InvalidValue, Money, Priority,
+    Protocol, Provider, Secret, SelectionStrategy, TokenUsage, UpstreamModelId, Weight,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -31,6 +31,7 @@ impl CredentialKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Credential {
     id: CredentialId,
+    group: GroupId,
     name: String,
     provider: Provider,
     kind: CredentialKind,
@@ -45,6 +46,7 @@ pub struct Credential {
 impl Credential {
     pub fn register_api_key(
         id: CredentialId,
+        group: GroupId,
         name: impl Into<String>,
         provider: Provider,
         secret: Secret,
@@ -60,6 +62,7 @@ impl Credential {
         };
         let credential = Self {
             id,
+            group,
             name,
             provider,
             kind: CredentialKind::ApiKey { secret },
@@ -73,8 +76,10 @@ impl Credential {
         Ok((credential, event))
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn register_subscription(
         id: CredentialId,
+        group: GroupId,
         name: impl Into<String>,
         provider: Provider,
         access_token: Secret,
@@ -98,6 +103,7 @@ impl Credential {
         };
         let credential = Self {
             id,
+            group,
             name,
             provider,
             kind: CredentialKind::Subscription {
@@ -118,6 +124,10 @@ impl Credential {
 
     pub fn id(&self) -> &CredentialId {
         &self.id
+    }
+
+    pub fn group(&self) -> &GroupId {
+        &self.group
     }
 
     pub fn name(&self) -> &str {
@@ -278,25 +288,25 @@ impl Credential {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UpstreamRef {
-    id: UpstreamRefId,
-    credential_id: CredentialId,
+pub struct AliasTarget {
+    id: AliasTargetId,
+    group: GroupId,
     upstream_model: UpstreamModelId,
     protocol: Protocol,
     weight: Weight,
     priority: Priority,
 }
 
-impl UpstreamRef {
+impl AliasTarget {
     pub fn new(
-        id: UpstreamRefId,
-        credential_id: CredentialId,
+        id: AliasTargetId,
+        group: GroupId,
         upstream_model: UpstreamModelId,
         protocol: Protocol,
     ) -> Self {
         Self {
             id,
-            credential_id,
+            group,
             upstream_model,
             protocol,
             weight: Weight::default(),
@@ -304,12 +314,12 @@ impl UpstreamRef {
         }
     }
 
-    pub fn id(&self) -> &UpstreamRefId {
+    pub fn id(&self) -> &AliasTargetId {
         &self.id
     }
 
-    pub fn credential_id(&self) -> &CredentialId {
-        &self.credential_id
+    pub fn group(&self) -> &GroupId {
+        &self.group
     }
 
     pub fn upstream_model(&self) -> &UpstreamModelId {
@@ -334,46 +344,79 @@ impl UpstreamRef {
     }
 }
 
+/// 同一上游的一组凭证，是调度的单位
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AccountPool {
-    name: PoolName,
+pub struct CredentialGroup {
+    id: GroupId,
+    provider: Provider,
     strategy: SelectionStrategy,
-    refs: Vec<UpstreamRef>,
 }
 
-impl AccountPool {
-    pub fn create(name: PoolName, strategy: SelectionStrategy, first: UpstreamRef) -> Self {
+impl CredentialGroup {
+    pub fn for_provider(id: GroupId, provider: Provider) -> Self {
         Self {
-            name,
-            strategy,
-            refs: vec![first],
+            id,
+            provider,
+            strategy: SelectionStrategy::default(),
         }
     }
 
-    pub fn name(&self) -> &PoolName {
-        &self.name
+    pub fn id(&self) -> &GroupId {
+        &self.id
+    }
+
+    pub fn provider(&self) -> &Provider {
+        &self.provider
     }
 
     pub fn strategy(&self) -> SelectionStrategy {
         self.strategy
     }
 
-    pub fn refs(&self) -> &[UpstreamRef] {
-        &self.refs
+    pub fn set_strategy(&mut self, strategy: SelectionStrategy) {
+        self.strategy = strategy;
     }
 
-    pub fn add_ref(&mut self, reference: UpstreamRef) {
-        self.refs.push(reference);
+    /// 组内已无凭证时移除，返回供订阅方清理别名目标的事件
+    pub fn remove(self) -> DomainEvent {
+        DomainEvent::CredentialGroupRemoved { id: self.id }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Alias {
+    name: AliasName,
+    targets: Vec<AliasTarget>,
+}
+
+impl Alias {
+    pub fn create(name: AliasName, first: AliasTarget) -> Self {
+        Self {
+            name,
+            targets: vec![first],
+        }
     }
 
-    pub fn references(&self, credential_id: &CredentialId) -> bool {
-        self.refs.iter().any(|r| r.credential_id() == credential_id)
+    pub fn name(&self) -> &AliasName {
+        &self.name
     }
 
-    /// 返回移除后是否已无引用，由调用方决定是否删除账号池
-    pub fn remove_credential_refs(&mut self, credential_id: &CredentialId) -> bool {
-        self.refs.retain(|r| r.credential_id() != credential_id);
-        self.refs.is_empty()
+    pub fn targets(&self) -> &[AliasTarget] {
+        &self.targets
+    }
+
+    pub fn add_target(&mut self, target: AliasTarget) {
+        self.targets.push(target);
+    }
+
+    pub fn references_group(&self, group: &GroupId) -> bool {
+        self.targets.iter().any(|t| t.group() == group)
+    }
+
+    /// 返回移除后是否已无目标，由调用方决定是否删除别名
+    pub fn remove_group_targets(&mut self, group: &GroupId) -> bool {
+        self.targets.retain(|t| t.group() != group);
+        self.targets.is_empty()
     }
 }
 
@@ -381,7 +424,7 @@ impl AccountPool {
 pub struct UsageRecord {
     request_id: String,
     credential_id: CredentialId,
-    pool: PoolName,
+    alias: AliasName,
     tokens: TokenUsage,
     cost: Money,
     succeeded: bool,
@@ -393,7 +436,7 @@ impl UsageRecord {
     pub fn record(
         request_id: impl Into<String>,
         credential_id: CredentialId,
-        pool: PoolName,
+        alias: AliasName,
         tokens: TokenUsage,
         cost: Money,
         succeeded: bool,
@@ -402,7 +445,7 @@ impl UsageRecord {
         let record = Self {
             request_id: request_id.into(),
             credential_id: credential_id.clone(),
-            pool: pool.clone(),
+            alias: alias.clone(),
             tokens,
             cost,
             succeeded,
@@ -410,7 +453,7 @@ impl UsageRecord {
         };
         let event = DomainEvent::UsageRecorded {
             credential_id,
-            pool: pool.as_str().to_string(),
+            alias: alias.as_str().to_string(),
             tokens,
             cost,
             succeeded,
@@ -426,8 +469,8 @@ impl UsageRecord {
         &self.credential_id
     }
 
-    pub fn pool(&self) -> &PoolName {
-        &self.pool
+    pub fn alias(&self) -> &AliasName {
+        &self.alias
     }
 
     pub fn tokens(&self) -> TokenUsage {
@@ -510,17 +553,14 @@ impl Settings {
     }
 }
 
-pub fn ensure_pool_can_reference(
-    credential: Option<&Credential>,
-    credential_id: &CredentialId,
+pub fn ensure_alias_can_reference(
+    group: Option<&CredentialGroup>,
+    group_id: &GroupId,
 ) -> Result<(), CatalogError> {
-    match credential {
+    match group {
         None => Err(CatalogError::CredentialNotFound(
-            credential_id.as_str().to_string(),
+            group_id.as_str().to_string(),
         )),
-        Some(c) if !c.is_available() => {
-            Err(CatalogError::CredentialUnavailable(c.name().to_string()))
-        }
         Some(_) => Ok(()),
     }
 }

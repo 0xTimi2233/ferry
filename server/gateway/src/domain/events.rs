@@ -1,6 +1,6 @@
 //! 领域事件
 
-use crate::domain::values::{CredentialId, HealthStatus, Money, TokenUsage};
+use crate::domain::values::{CredentialId, GroupId, HealthStatus, Money, TokenUsage};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DomainEvent {
@@ -16,9 +16,12 @@ pub enum DomainEvent {
     CredentialDeleted {
         id: CredentialId,
     },
+    CredentialGroupRemoved {
+        id: GroupId,
+    },
     UsageRecorded {
         credential_id: CredentialId,
-        pool: String,
+        alias: String,
         tokens: TokenUsage,
         cost: Money,
         succeeded: bool,
@@ -31,6 +34,7 @@ impl DomainEvent {
             Self::CredentialRegistered { .. } => "CredentialRegistered",
             Self::CredentialHealthChanged { .. } => "CredentialHealthChanged",
             Self::CredentialDeleted { .. } => "CredentialDeleted",
+            Self::CredentialGroupRemoved { .. } => "CredentialGroupRemoved",
             Self::UsageRecorded { .. } => "UsageRecorded",
         }
     }

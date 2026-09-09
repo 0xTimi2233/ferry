@@ -10,6 +10,7 @@ use crate::domain::values::*;
 
 /// 测试用返回类型，任意领域错误都能被 `?` 传播
 type TestResult = Result<(), Box<dyn std::error::Error>>;
+
 fn provider(name: &str) -> Result<Provider, InvalidValue> {
     Provider::new(name)
 }
@@ -18,17 +19,22 @@ fn model(name: &str) -> Result<UpstreamModelId, InvalidValue> {
     UpstreamModelId::new(name)
 }
 
-fn pool_name(name: &str) -> Result<PoolName, InvalidValue> {
-    PoolName::new(name)
+fn alias_name(name: &str) -> Result<AliasName, InvalidValue> {
+    AliasName::new(name)
 }
 
 fn secret(raw: &str) -> Result<Secret, InvalidValue> {
     Secret::new(raw)
 }
 
+fn group_id() -> GroupId {
+    GroupId::new("g-deepseek")
+}
+
 fn api_key(name: &str) -> Result<Credential, Box<dyn std::error::Error>> {
     let (credential, _) = Credential::register_api_key(
         CredentialId::new("c1"),
+        group_id(),
         name,
         provider("DeepSeek")?,
         secret("sk-test-0001")?,
@@ -39,6 +45,7 @@ fn api_key(name: &str) -> Result<Credential, Box<dyn std::error::Error>> {
 fn subscription(expires_in_hours: i64) -> Result<Credential, Box<dyn std::error::Error>> {
     let (credential, _) = Credential::register_subscription(
         CredentialId::new("c2"),
+        GroupId::new("g-openai"),
         "chatgpt-plus",
         provider("OpenAI")?,
         secret("access-token")?,
@@ -49,10 +56,20 @@ fn subscription(expires_in_hours: i64) -> Result<Credential, Box<dyn std::error:
     Ok(credential)
 }
 
+fn target(id: &str, group: GroupId, model_name: &str) -> Result<AliasTarget, InvalidValue> {
+    Ok(AliasTarget::new(
+        AliasTargetId::new(id),
+        group,
+        model(model_name)?,
+        Protocol::OpenAiChat,
+    ))
+}
+
 #[test]
 fn should_register_api_key_credential_as_ready() -> TestResult {
     let (credential, event) = Credential::register_api_key(
         CredentialId::new("c1"),
+        group_id(),
         "deepseek-main",
         provider("DeepSeek")?,
         secret("sk-test-0001")?,
@@ -60,6 +77,7 @@ fn should_register_api_key_credential_as_ready() -> TestResult {
 
     assert!(credential.is_available());
     assert_eq!(credential.masked_secret(), "sk-t••••••0001");
+    assert_eq!(credential.group(), &group_id());
     assert_eq!(event.name(), "CredentialRegistered");
     Ok(())
 }
@@ -68,6 +86,7 @@ fn should_register_api_key_credential_as_ready() -> TestResult {
 fn should_reject_blank_credential_name() -> TestResult {
     let result = Credential::register_api_key(
         CredentialId::new("c1"),
+        group_id(),
         "   ",
         provider("DeepSeek")?,
         secret("sk-test-0001")?,
@@ -81,6 +100,7 @@ fn should_reject_blank_credential_name() -> TestResult {
 fn should_reject_subscription_for_unsupported_upstream() -> TestResult {
     let result = Credential::register_subscription(
         CredentialId::new("c1"),
+        group_id(),
         "deepseek-main",
         provider("DeepSeek")?,
         secret("access")?,
@@ -221,122 +241,6 @@ fn should_reject_fetch_when_credential_unavailable() -> TestResult {
 }
 
 #[test]
-fn should_create_pool_with_first_reference() -> TestResult {
-    let reference = UpstreamRef::new(
-        UpstreamRefId::new("r1"),
-        CredentialId::new("c1"),
-        model("deepseek-chat")?,
-        Protocol::OpenAiChat,
-    );
-    let pool = AccountPool::create(
-        pool_name("deepseek-chat")?,
-        SelectionStrategy::RoundRobin,
-        reference,
-    );
-
-    assert_eq!(pool.refs().len(), 1);
-    assert_eq!(pool.refs()[0].protocol(), Protocol::OpenAiChat);
-    assert!(pool.references(&CredentialId::new("c1")));
-    Ok(())
-}
-
-#[test]
-fn should_add_second_reference_and_tune_weights() -> TestResult {
-    let mut pool = AccountPool::create(
-        pool_name("deepseek-chat")?,
-        SelectionStrategy::RoundRobin,
-        UpstreamRef::new(
-            UpstreamRefId::new("r1"),
-            CredentialId::new("c1"),
-            model("deepseek-chat")?,
-            Protocol::OpenAiChat,
-        ),
-    );
-    let mut second = UpstreamRef::new(
-        UpstreamRefId::new("r2"),
-        CredentialId::new("c3"),
-        model("deepseek-chat")?,
-        Protocol::OpenAiChat,
-    );
-    second.tune(Weight::new(3), Priority::new(2)?);
-
-    pool.add_ref(second);
-
-    assert_eq!(pool.refs().len(), 2);
-    assert_eq!(pool.refs()[1].weight().value(), 3);
-    assert_eq!(pool.refs()[1].priority().value(), 2);
-    Ok(())
-}
-
-#[test]
-fn should_remove_all_references_of_deleted_credential() -> TestResult {
-    let mut pool = AccountPool::create(
-        pool_name("deepseek-chat")?,
-        SelectionStrategy::RoundRobin,
-        UpstreamRef::new(
-            UpstreamRefId::new("r1"),
-            CredentialId::new("c1"),
-            model("deepseek-chat")?,
-            Protocol::OpenAiChat,
-        ),
-    );
-    pool.add_ref(UpstreamRef::new(
-        UpstreamRefId::new("r2"),
-        CredentialId::new("c3"),
-        model("deepseek-chat")?,
-        Protocol::OpenAiChat,
-    ));
-
-    let empty = pool.remove_credential_refs(&CredentialId::new("c1"));
-
-    assert!(!empty);
-    assert_eq!(pool.refs().len(), 1);
-    assert!(!pool.references(&CredentialId::new("c1")));
-    Ok(())
-}
-
-#[test]
-fn should_report_pool_empty_after_last_reference_removed() -> TestResult {
-    let mut pool = AccountPool::create(
-        pool_name("solo-pool")?,
-        SelectionStrategy::FillFirst,
-        UpstreamRef::new(
-            UpstreamRefId::new("r1"),
-            CredentialId::new("c3"),
-            model("deepseek-chat")?,
-            Protocol::OpenAiChat,
-        ),
-    );
-
-    let empty = pool.remove_credential_refs(&CredentialId::new("c3"));
-
-    assert!(empty);
-    Ok(())
-}
-
-#[test]
-fn should_reject_reference_to_missing_credential() -> TestResult {
-    let result = ensure_pool_can_reference(None, &CredentialId::new("credential-9999"));
-
-    assert!(matches!(result, Err(CatalogError::CredentialNotFound(_))));
-    Ok(())
-}
-
-#[test]
-fn should_reject_reference_to_disabled_credential() -> TestResult {
-    let mut credential = api_key("openai-key-2")?;
-    credential.disable();
-
-    let result = ensure_pool_can_reference(Some(&credential), credential.id());
-
-    assert!(matches!(
-        result,
-        Err(CatalogError::CredentialUnavailable(_))
-    ));
-    Ok(())
-}
-
-#[test]
 fn should_publish_credential_deleted_event() -> TestResult {
     let credential = api_key("deepseek-backup")?;
 
@@ -347,11 +251,101 @@ fn should_publish_credential_deleted_event() -> TestResult {
 }
 
 #[test]
+fn should_group_credentials_by_provider_with_default_strategy() -> TestResult {
+    let mut group = CredentialGroup::for_provider(group_id(), provider("DeepSeek")?);
+
+    assert_eq!(group.provider().as_str(), "DeepSeek");
+    assert_eq!(group.strategy(), SelectionStrategy::RoundRobin);
+
+    group.set_strategy(SelectionStrategy::Weighted);
+
+    assert_eq!(group.strategy(), SelectionStrategy::Weighted);
+    Ok(())
+}
+
+#[test]
+fn should_create_alias_with_first_target() -> TestResult {
+    let alias = Alias::create(
+        alias_name("deepseek-chat")?,
+        target("t1", group_id(), "deepseek-chat")?,
+    );
+
+    assert_eq!(alias.targets().len(), 1);
+    assert_eq!(alias.targets()[0].protocol(), Protocol::OpenAiChat);
+    assert!(alias.references_group(&group_id()));
+    Ok(())
+}
+
+#[test]
+fn should_add_second_target_and_tune_weights() -> TestResult {
+    let mut alias = Alias::create(
+        alias_name("deepseek-chat")?,
+        target("t1", group_id(), "deepseek-chat")?,
+    );
+    let mut second = target("t2", GroupId::new("g-openai"), "gpt-5")?;
+    second.tune(Weight::new(3), Priority::new(2)?);
+
+    alias.add_target(second);
+
+    assert_eq!(alias.targets().len(), 2);
+    assert_eq!(alias.targets()[1].weight().value(), 3);
+    assert_eq!(alias.targets()[1].priority().value(), 2);
+    Ok(())
+}
+
+#[test]
+fn should_remove_all_targets_of_removed_group() -> TestResult {
+    let mut alias = Alias::create(
+        alias_name("deepseek-chat")?,
+        target("t1", group_id(), "deepseek-chat")?,
+    );
+    alias.add_target(target("t2", GroupId::new("g-openai"), "gpt-5")?);
+
+    let empty = alias.remove_group_targets(&group_id());
+
+    assert!(!empty);
+    assert_eq!(alias.targets().len(), 1);
+    assert!(!alias.references_group(&group_id()));
+    Ok(())
+}
+
+#[test]
+fn should_report_alias_empty_after_last_target_removed() -> TestResult {
+    let mut alias = Alias::create(
+        alias_name("solo-alias")?,
+        target("t1", group_id(), "deepseek-chat")?,
+    );
+
+    let empty = alias.remove_group_targets(&group_id());
+
+    assert!(empty);
+    Ok(())
+}
+
+#[test]
+fn should_reject_reference_to_missing_group() -> TestResult {
+    let result = ensure_alias_can_reference(None, &GroupId::new("g-missing"));
+
+    assert!(matches!(result, Err(CatalogError::CredentialNotFound(_))));
+    Ok(())
+}
+
+#[test]
+fn should_accept_reference_to_existing_group() -> TestResult {
+    let group = CredentialGroup::for_provider(group_id(), provider("DeepSeek")?);
+
+    let result = ensure_alias_can_reference(Some(&group), group.id());
+
+    assert!(result.is_ok());
+    Ok(())
+}
+
+#[test]
 fn should_publish_usage_event_when_recorded() -> TestResult {
     let (record, event) = UsageRecord::record(
         "req_1",
         CredentialId::new("c1"),
-        pool_name("deepseek-chat")?,
+        alias_name("deepseek-chat")?,
         TokenUsage {
             input: 100,
             output: 20,
