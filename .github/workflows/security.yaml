@@ -17,13 +17,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - name: 安装 Gitleaks 官方原生 CLI
+          persist-credentials: false
+      - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
         env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release download --repo gitleaks/gitleaks --pattern '*_linux_x64.tar.gz' --output - | sudo tar -xz -C /usr/local/bin gitleaks
-      - name: 执行全量 Git 历史与存量密钥扫描
-        run: gitleaks git --verbose --redact .
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   cargo-deny:
     name: 依赖与合规审计
