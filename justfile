@@ -21,6 +21,10 @@ check-server:
     cargo fmt --check
 
 [group('server')]
+fmt-server:
+    cargo fmt --all
+
+[group('server')]
 lint-server:
     cargo clippy --all-targets --all-features -- -D warnings
 
