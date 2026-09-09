@@ -24,7 +24,7 @@ Feature: 拉取上游模型清单
   @wip @credential-fetch_upstream_models_upstream_error
   Scenario: 上游返回错误时保留原有清单
     Given 存在可用的凭证 "deepseek-main"
-    And 上游返回服务不可用
+    And 上游 "DeepSeek" 返回服务不可用
     When 对该凭证发起模型拉取
-    Then 拉取失败且错误信息包含上游来源
+    Then 拉取失败且错误信息里的上游字段为 "DeepSeek"
     And 凭证已保留的模型不变

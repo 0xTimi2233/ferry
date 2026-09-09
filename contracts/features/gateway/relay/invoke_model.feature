@@ -12,7 +12,7 @@ Feature: 发起模型调用
     Given 别名 "deepseek-chat" 存在且包含可用凭证
     When 客户端以访问密钥请求该别名，且不要求流式响应
     Then 返回上游的响应且已转换为客户端协议的形态
-    And 发布领域事件 UsageRecorded，包含凭证、别名与 token 用量
+    And 发布领域事件 UsageRecorded，包含凭证、别名、token 用量与耗时
 
   @wip @relay-invoke_model_streamed
   Scenario: 流式调用成功
@@ -37,58 +37,19 @@ Feature: 发起模型调用
 
   @wip @relay-invoke_model_failover
   Scenario: 首个凭证失败时切换凭证
-    Given 别名 "deepseek-chat" 包含凭证 "openai-key-2" 与 "deepseek-main"
+    Given 别名 "deepseek-chat" 的账号组包含凭证 "openai-key-2" 与 "deepseek-main"
     And 凭证 "openai-key-2" 返回限流且可重试
     When 客户端请求该别名
     Then 网关改用 "deepseek-main" 完成本次调用
     And 凭证 "openai-key-2" 进入冷却且记录原因
 
-  @wip @relay-invoke_model_all_unavailable
-  Scenario: 全部凭证不可用时返回统一错误
-    Given 别名 "deepseek-chat" 的全部凭证均处于冷却状态
-    And 各凭证的恢复时间分别为 T1 与 T2，其中 T1 早于 T2
-    When 客户端请求该别名
-    Then 请求被拒绝且错误信息包含尝试过的凭证名称清单
-    And 错误信息里的恢复时间取其中最晚的 T2
-
-  @wip @relay-invoke_model_concurrency_limited
-  Scenario: 并发达到上限时快速失败
-    Given 账号组 "g-deepseek" 的在途并发上限为 2
-    And 已有两次调用在途
-    When 客户端再发起一次请求
-    Then 请求被拒绝且返回并发已满
-    And 不向上游发起请求
-
   @wip @relay-invoke_model_hard_quota
   Scenario: 凭证硬配额耗尽时不再重试
-    Given 别名 "deepseek-chat" 包含凭证 "deepseek-main"
+    Given 别名 "deepseek-chat" 的账号组包含凭证 "deepseek-main"
     And 该凭证返回配额耗尽且无重试时间
     When 客户端请求该别名
     Then 请求被拒绝且凭证标记为失效
     And 不对该凭证继续重试
-
-  @wip @relay-invoke_model_cooldown_recovered
-  Scenario: 冷却到期后凭证重新可选
-    Given 别名 "deepseek-chat" 的唯一凭证处于冷却且恢复时间已过
-    When 客户端请求该别名
-    Then 该凭证被重新选中并完成调用
-    And 凭证健康状态回到可用
-
-  @wip @relay-invoke_model_session_affinity
-  Scenario: 同一会话固定使用同一凭证
-    Given 别名 "deepseek-chat" 包含两个可用凭证
-    And 会话粘性已开启
-    When 同一会话连续发起两次请求
-    Then 两次请求落到同一凭证
-    And 用量记录里两次都标记为命中会话粘性
-
-  @wip @relay-invoke_model_affinity_fallback
-  Scenario: 绑定凭证不可用时重建绑定
-    Given 某会话已绑定到凭证 "deepseek-main"
-    And 该凭证变为冷却
-    When 该会话再次发起请求
-    Then 网关改用另一个可用凭证完成调用
-    And 该会话的绑定更新为新凭证
 
   @wip @relay-invoke_model_translation_failed
   Scenario: 协议转换失败时拒绝

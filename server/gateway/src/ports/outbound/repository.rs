@@ -67,6 +67,14 @@ pub trait SettingsRepository: Send + Sync {
     async fn save(&self, settings: &Settings) -> Result<(), PortError>;
 }
 
+/// 访问密钥校验：哈希与校验语义由适配器实现，明文不落盘
+pub trait AccessKeyVerifier: Send + Sync {
+    /// 生成新密钥明文，仅返回一次
+    fn generate(&self) -> String;
+    fn hash(&self, plaintext: &str) -> Result<String, PortError>;
+    fn verify(&self, plaintext: &str, hash: &str) -> Result<bool, PortError>;
+}
+
 /// 待授权仓储：`take` 原子取出并消费，同一状态标识只能成功一次
 #[async_trait]
 pub trait PendingAuthorizationRepository: Send + Sync {

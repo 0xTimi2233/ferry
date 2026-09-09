@@ -476,37 +476,63 @@ pub struct UsageRecord {
     tokens: TokenUsage,
     cost: Money,
     succeeded: bool,
+    latency_ms: u64,
+    failure_reason: Option<String>,
+    affinity_hit: bool,
     at: DateTime<Utc>,
 }
 
+/// 一次调用的记账入参
+#[derive(Debug, Clone)]
+pub struct UsageEntry {
+    pub request_id: String,
+    pub credential_id: CredentialId,
+    pub alias: AliasName,
+    pub tokens: TokenUsage,
+    pub cost: Money,
+    pub succeeded: bool,
+    pub latency_ms: u64,
+    pub failure_reason: Option<String>,
+    pub affinity_hit: bool,
+    pub at: DateTime<Utc>,
+}
+
 impl UsageRecord {
-    #[allow(clippy::too_many_arguments)]
-    pub fn record(
-        request_id: impl Into<String>,
-        credential_id: CredentialId,
-        alias: AliasName,
-        tokens: TokenUsage,
-        cost: Money,
-        succeeded: bool,
-        at: DateTime<Utc>,
-    ) -> (Self, DomainEvent) {
+    pub fn record(entry: UsageEntry) -> (Self, DomainEvent) {
         let record = Self {
-            request_id: request_id.into(),
-            credential_id: credential_id.clone(),
-            alias: alias.clone(),
-            tokens,
-            cost,
-            succeeded,
-            at,
+            request_id: entry.request_id,
+            credential_id: entry.credential_id.clone(),
+            alias: entry.alias.clone(),
+            tokens: entry.tokens,
+            cost: entry.cost,
+            succeeded: entry.succeeded,
+            latency_ms: entry.latency_ms,
+            failure_reason: entry.failure_reason.clone(),
+            affinity_hit: entry.affinity_hit,
+            at: entry.at,
         };
         let event = DomainEvent::UsageRecorded {
-            credential_id,
-            alias: alias.as_str().to_string(),
-            tokens,
-            cost,
-            succeeded,
+            credential_id: entry.credential_id,
+            alias: entry.alias.as_str().to_string(),
+            tokens: entry.tokens,
+            cost: entry.cost,
+            succeeded: entry.succeeded,
+            latency_ms: entry.latency_ms,
+            affinity_hit: entry.affinity_hit,
         };
         (record, event)
+    }
+
+    pub fn latency_ms(&self) -> u64 {
+        self.latency_ms
+    }
+
+    pub fn failure_reason(&self) -> Option<&str> {
+        self.failure_reason.as_deref()
+    }
+
+    pub fn affinity_hit(&self) -> bool {
+        self.affinity_hit
     }
 
     pub fn request_id(&self) -> &str {

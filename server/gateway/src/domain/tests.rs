@@ -435,21 +435,26 @@ fn should_accept_reference_to_existing_group() -> TestResult {
 
 #[test]
 fn should_publish_usage_event_when_recorded() -> TestResult {
-    let (record, event) = UsageRecord::record(
-        "req_1",
-        CredentialId::new("c1"),
-        alias_name("deepseek-chat")?,
-        TokenUsage {
+    let (record, event) = UsageRecord::record(UsageEntry {
+        request_id: "req_1".to_string(),
+        credential_id: CredentialId::new("c1"),
+        alias: alias_name("deepseek-chat")?,
+        tokens: TokenUsage {
             input: 100,
             output: 20,
             ..TokenUsage::default()
         },
-        Money::from_micro_usd(1_500),
-        true,
-        Utc::now(),
-    );
+        cost: Money::from_micro_usd(1_500),
+        succeeded: true,
+        latency_ms: 900,
+        failure_reason: None,
+        affinity_hit: true,
+        at: Utc::now(),
+    });
 
     assert_eq!(record.tokens().total(), 120);
+    assert_eq!(record.latency_ms(), 900);
+    assert!(record.affinity_hit());
     assert_eq!(event.name(), "UsageRecorded");
     Ok(())
 }

@@ -25,6 +25,8 @@ pub enum DomainEvent {
         tokens: TokenUsage,
         cost: Money,
         succeeded: bool,
+        latency_ms: u64,
+        affinity_hit: bool,
     },
 }
 
