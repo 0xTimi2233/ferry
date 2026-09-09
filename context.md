@@ -1,13 +1,11 @@
-# Ferry
-
-个人自用的 AI 网关，统一管理多家上游的凭证与订阅，按模型别名把请求调度到不同上游。
+# 统一语言
 
 ## 术语
 
 ### 接入与转发
 
 **访问密钥**:
-客户端接入 Ferry 时使用的凭据
+客户端接入时使用的凭据
 等价: AccessKey
 避免: API Key, 令牌, Token
 
@@ -17,12 +15,12 @@
 避免: 代理, 透传
 
 **基准协议**:
-Ferry 直接实现的四套线上协议，分别是 OpenAI Chat Completions、OpenAI Responses、Anthropic Messages 与 Gemini
+直接实现的四套线上协议，分别是 OpenAI Chat Completions、OpenAI Responses、Anthropic Messages 与 Gemini
 等价: BaseProtocol
 避免: 标准协议, 原生协议
 
 **内部统一表示**:
-Ferry 领域内部表达一次模型调用的语言
+领域内部表达一次模型调用的语言
 等价: CanonicalRequest
 避免: 中间格式, 标准格式
 
