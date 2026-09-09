@@ -1,3 +1,3 @@
-//! 计量切片
+//! 计量
 
 pub mod queries;

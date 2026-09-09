@@ -1,4 +1,4 @@
-//! 垂直切片
+//! 功能
 
 pub mod catalog;
 pub mod credential;

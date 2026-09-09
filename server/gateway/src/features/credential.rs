@@ -1,4 +1,4 @@
-//! 凭证切片
+//! 凭证
 
 pub mod commands;
 pub mod queries;

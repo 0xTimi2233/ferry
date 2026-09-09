@@ -8,7 +8,7 @@ use crate::domain::values::{AliasName, CredentialId, Secret, UpstreamModelId};
 
 use super::PortError;
 
-/// 待授权状态，发起与完成订阅授权的两个切片共享
+/// 待授权状态，发起与完成订阅授权两个用例共享
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PendingAuthorization {
     pub state: String,

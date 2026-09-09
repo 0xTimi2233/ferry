@@ -1,3 +1,3 @@
-//! 设置切片
+//! 设置
 
 pub mod commands;

@@ -1,4 +1,4 @@
-//! 模型目录切片
+//! 模型目录
 
 pub mod commands;
 pub mod queries;
