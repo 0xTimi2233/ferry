@@ -30,7 +30,7 @@ test-server:
 
 [group('server')]
 audit-server:
-    cargo deny check
+    cargo deny check advisories bans sources
 
 [group('github')]
 sync-labels repo:
