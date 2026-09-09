@@ -11,14 +11,14 @@ Feature: 查询请求日志
   Scenario: 查询最近的请求记录
     Given 存在若干请求记录
     When 查询请求日志
-    Then 按时间倒序返回记录，每条包含时间、别名、凭证、输入 token、输出 token、耗时与结果
+    Then 按时间倒序返回记录，每条包含时间、账号池、凭证、输入 token、输出 token、耗时与结果
     And 失败的记录附带失败原因
 
   @wip @metering-query_request_logs_filtered
-  Scenario: 按别名或凭证筛选
-    Given 存在涉及两个别名的请求记录
-    When 按别名 "deepseek-chat" 筛选
-    Then 只返回该别名的记录
+  Scenario: 按账号池或凭证筛选
+    Given 存在涉及两个账号池的请求记录
+    When 按账号池 "deepseek-chat" 筛选
+    Then 只返回该账号池的记录
 
   @wip @metering-query_request_logs_only_failed
   Scenario: 只看失败记录

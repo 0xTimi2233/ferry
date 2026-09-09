@@ -16,13 +16,13 @@ impl CredentialId {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct AliasName(String);
+pub struct PoolName(String);
 
-impl AliasName {
+impl PoolName {
     pub fn new(raw: impl Into<String>) -> Result<Self, InvalidValue> {
         let raw = raw.into();
         if raw.trim().is_empty() {
-            return Err(InvalidValue::Blank("模型别名"));
+            return Err(InvalidValue::Blank("账号池"));
         }
         Ok(Self(raw))
     }

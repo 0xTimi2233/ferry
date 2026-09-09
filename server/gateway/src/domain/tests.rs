@@ -18,8 +18,8 @@ fn model(name: &str) -> Result<UpstreamModelId, InvalidValue> {
     UpstreamModelId::new(name)
 }
 
-fn alias_name(name: &str) -> Result<AliasName, InvalidValue> {
-    AliasName::new(name)
+fn pool_name(name: &str) -> Result<PoolName, InvalidValue> {
+    PoolName::new(name)
 }
 
 fn secret(raw: &str) -> Result<Secret, InvalidValue> {
@@ -221,29 +221,29 @@ fn should_reject_fetch_when_credential_unavailable() -> TestResult {
 }
 
 #[test]
-fn should_create_alias_with_first_reference() -> TestResult {
+fn should_create_pool_with_first_reference() -> TestResult {
     let reference = UpstreamRef::new(
         UpstreamRefId::new("r1"),
         CredentialId::new("c1"),
         model("deepseek-chat")?,
         Protocol::OpenAiChat,
     );
-    let alias = ModelAlias::create(
-        alias_name("deepseek-chat")?,
+    let pool = AccountPool::create(
+        pool_name("deepseek-chat")?,
         SelectionStrategy::RoundRobin,
         reference,
     );
 
-    assert_eq!(alias.refs().len(), 1);
-    assert_eq!(alias.refs()[0].protocol(), Protocol::OpenAiChat);
-    assert!(alias.references(&CredentialId::new("c1")));
+    assert_eq!(pool.refs().len(), 1);
+    assert_eq!(pool.refs()[0].protocol(), Protocol::OpenAiChat);
+    assert!(pool.references(&CredentialId::new("c1")));
     Ok(())
 }
 
 #[test]
 fn should_add_second_reference_and_tune_weights() -> TestResult {
-    let mut alias = ModelAlias::create(
-        alias_name("deepseek-chat")?,
+    let mut pool = AccountPool::create(
+        pool_name("deepseek-chat")?,
         SelectionStrategy::RoundRobin,
         UpstreamRef::new(
             UpstreamRefId::new("r1"),
@@ -260,18 +260,18 @@ fn should_add_second_reference_and_tune_weights() -> TestResult {
     );
     second.tune(Weight::new(3), Priority::new(2)?);
 
-    alias.add_ref(second);
+    pool.add_ref(second);
 
-    assert_eq!(alias.refs().len(), 2);
-    assert_eq!(alias.refs()[1].weight().value(), 3);
-    assert_eq!(alias.refs()[1].priority().value(), 2);
+    assert_eq!(pool.refs().len(), 2);
+    assert_eq!(pool.refs()[1].weight().value(), 3);
+    assert_eq!(pool.refs()[1].priority().value(), 2);
     Ok(())
 }
 
 #[test]
 fn should_remove_all_references_of_deleted_credential() -> TestResult {
-    let mut alias = ModelAlias::create(
-        alias_name("deepseek-chat")?,
+    let mut pool = AccountPool::create(
+        pool_name("deepseek-chat")?,
         SelectionStrategy::RoundRobin,
         UpstreamRef::new(
             UpstreamRefId::new("r1"),
@@ -280,25 +280,25 @@ fn should_remove_all_references_of_deleted_credential() -> TestResult {
             Protocol::OpenAiChat,
         ),
     );
-    alias.add_ref(UpstreamRef::new(
+    pool.add_ref(UpstreamRef::new(
         UpstreamRefId::new("r2"),
         CredentialId::new("c3"),
         model("deepseek-chat")?,
         Protocol::OpenAiChat,
     ));
 
-    let empty = alias.remove_credential_refs(&CredentialId::new("c1"));
+    let empty = pool.remove_credential_refs(&CredentialId::new("c1"));
 
     assert!(!empty);
-    assert_eq!(alias.refs().len(), 1);
-    assert!(!alias.references(&CredentialId::new("c1")));
+    assert_eq!(pool.refs().len(), 1);
+    assert!(!pool.references(&CredentialId::new("c1")));
     Ok(())
 }
 
 #[test]
-fn should_report_alias_empty_after_last_reference_removed() -> TestResult {
-    let mut alias = ModelAlias::create(
-        alias_name("solo-alias")?,
+fn should_report_pool_empty_after_last_reference_removed() -> TestResult {
+    let mut pool = AccountPool::create(
+        pool_name("solo-pool")?,
         SelectionStrategy::FillFirst,
         UpstreamRef::new(
             UpstreamRefId::new("r1"),
@@ -308,7 +308,7 @@ fn should_report_alias_empty_after_last_reference_removed() -> TestResult {
         ),
     );
 
-    let empty = alias.remove_credential_refs(&CredentialId::new("c3"));
+    let empty = pool.remove_credential_refs(&CredentialId::new("c3"));
 
     assert!(empty);
     Ok(())
@@ -316,7 +316,7 @@ fn should_report_alias_empty_after_last_reference_removed() -> TestResult {
 
 #[test]
 fn should_reject_reference_to_missing_credential() -> TestResult {
-    let result = ensure_alias_can_reference(None, &CredentialId::new("credential-9999"));
+    let result = ensure_pool_can_reference(None, &CredentialId::new("credential-9999"));
 
     assert!(matches!(result, Err(CatalogError::CredentialNotFound(_))));
     Ok(())
@@ -327,7 +327,7 @@ fn should_reject_reference_to_disabled_credential() -> TestResult {
     let mut credential = api_key("openai-key-2")?;
     credential.disable();
 
-    let result = ensure_alias_can_reference(Some(&credential), credential.id());
+    let result = ensure_pool_can_reference(Some(&credential), credential.id());
 
     assert!(matches!(
         result,
@@ -337,11 +337,21 @@ fn should_reject_reference_to_disabled_credential() -> TestResult {
 }
 
 #[test]
+fn should_publish_credential_deleted_event() -> TestResult {
+    let credential = api_key("deepseek-backup")?;
+
+    let event = credential.delete();
+
+    assert_eq!(event.name(), "CredentialDeleted");
+    Ok(())
+}
+
+#[test]
 fn should_publish_usage_event_when_recorded() -> TestResult {
     let (record, event) = UsageRecord::record(
         "req_1",
         CredentialId::new("c1"),
-        alias_name("deepseek-chat")?,
+        pool_name("deepseek-chat")?,
         TokenUsage {
             input: 100,
             output: 20,

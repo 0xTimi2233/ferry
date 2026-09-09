@@ -3,8 +3,8 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 
-use crate::domain::aggregates::{Credential, ModelAlias, Settings, UsageRecord};
-use crate::domain::values::{AliasName, CredentialId, Secret, UpstreamModelId};
+use crate::domain::aggregates::{AccountPool, Credential, Settings, UsageRecord};
+use crate::domain::values::{CredentialId, PoolName, Secret, UpstreamModelId};
 
 use super::PortError;
 
@@ -27,11 +27,11 @@ pub trait CredentialRepository: Send + Sync {
 }
 
 #[async_trait]
-pub trait ModelAliasRepository: Send + Sync {
-    async fn find(&self, name: &AliasName) -> Result<Option<ModelAlias>, PortError>;
-    async fn list_all(&self) -> Result<Vec<ModelAlias>, PortError>;
-    async fn save(&self, alias: &ModelAlias) -> Result<(), PortError>;
-    async fn delete(&self, name: &AliasName) -> Result<(), PortError>;
+pub trait AccountPoolRepository: Send + Sync {
+    async fn find(&self, name: &PoolName) -> Result<Option<AccountPool>, PortError>;
+    async fn list_all(&self) -> Result<Vec<AccountPool>, PortError>;
+    async fn save(&self, pool: &AccountPool) -> Result<(), PortError>;
+    async fn delete(&self, name: &PoolName) -> Result<(), PortError>;
     async fn count_refs_to(&self, credential_id: &CredentialId) -> Result<u64, PortError>;
 }
 

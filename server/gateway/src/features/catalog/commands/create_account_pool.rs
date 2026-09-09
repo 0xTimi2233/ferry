@@ -1,8 +1,8 @@
-//! 创建模型别名
+//! 创建账号池
 
 /// 入站数据
 #[derive(Debug, Clone)]
-pub struct CreateModelAlias {
+pub struct CreateAccountPool {
     pub name: String,
     pub strategy: String,
     pub credential_id: String,

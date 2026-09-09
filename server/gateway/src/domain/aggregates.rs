@@ -5,7 +5,7 @@ use chrono::{DateTime, Utc};
 use crate::domain::errors::{CatalogError, CredentialError, SettingsError};
 use crate::domain::events::DomainEvent;
 use crate::domain::values::{
-    AliasName, CredentialId, HealthStatus, InvalidValue, Money, Priority, Protocol, Provider,
+    CredentialId, HealthStatus, InvalidValue, Money, PoolName, Priority, Protocol, Provider,
     Secret, SelectionStrategy, TokenUsage, UpstreamModelId, UpstreamRefId, Weight,
 };
 
@@ -255,6 +255,11 @@ impl Credential {
         self.health_changed_event()
     }
 
+    /// 删除凭证，返回供订阅方清理引用的事件
+    pub fn delete(self) -> DomainEvent {
+        DomainEvent::CredentialDeleted { id: self.id }
+    }
+
     /// 访问令牌仍有效时只推迟下次刷新，已过期才标记失效
     pub fn on_refresh_failed(
         &mut self,
@@ -330,14 +335,14 @@ impl UpstreamRef {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ModelAlias {
-    name: AliasName,
+pub struct AccountPool {
+    name: PoolName,
     strategy: SelectionStrategy,
     refs: Vec<UpstreamRef>,
 }
 
-impl ModelAlias {
-    pub fn create(name: AliasName, strategy: SelectionStrategy, first: UpstreamRef) -> Self {
+impl AccountPool {
+    pub fn create(name: PoolName, strategy: SelectionStrategy, first: UpstreamRef) -> Self {
         Self {
             name,
             strategy,
@@ -345,7 +350,7 @@ impl ModelAlias {
         }
     }
 
-    pub fn name(&self) -> &AliasName {
+    pub fn name(&self) -> &PoolName {
         &self.name
     }
 
@@ -365,7 +370,7 @@ impl ModelAlias {
         self.refs.iter().any(|r| r.credential_id() == credential_id)
     }
 
-    /// 返回移除后是否已无引用，由调用方决定是否删除别名
+    /// 返回移除后是否已无引用，由调用方决定是否删除账号池
     pub fn remove_credential_refs(&mut self, credential_id: &CredentialId) -> bool {
         self.refs.retain(|r| r.credential_id() != credential_id);
         self.refs.is_empty()
@@ -376,7 +381,7 @@ impl ModelAlias {
 pub struct UsageRecord {
     request_id: String,
     credential_id: CredentialId,
-    alias: AliasName,
+    pool: PoolName,
     tokens: TokenUsage,
     cost: Money,
     succeeded: bool,
@@ -388,7 +393,7 @@ impl UsageRecord {
     pub fn record(
         request_id: impl Into<String>,
         credential_id: CredentialId,
-        alias: AliasName,
+        pool: PoolName,
         tokens: TokenUsage,
         cost: Money,
         succeeded: bool,
@@ -397,7 +402,7 @@ impl UsageRecord {
         let record = Self {
             request_id: request_id.into(),
             credential_id: credential_id.clone(),
-            alias: alias.clone(),
+            pool: pool.clone(),
             tokens,
             cost,
             succeeded,
@@ -405,7 +410,7 @@ impl UsageRecord {
         };
         let event = DomainEvent::UsageRecorded {
             credential_id,
-            alias: alias.as_str().to_string(),
+            pool: pool.as_str().to_string(),
             tokens,
             cost,
             succeeded,
@@ -421,8 +426,8 @@ impl UsageRecord {
         &self.credential_id
     }
 
-    pub fn alias(&self) -> &AliasName {
-        &self.alias
+    pub fn pool(&self) -> &PoolName {
+        &self.pool
     }
 
     pub fn tokens(&self) -> TokenUsage {
@@ -505,7 +510,7 @@ impl Settings {
     }
 }
 
-pub fn ensure_alias_can_reference(
+pub fn ensure_pool_can_reference(
     credential: Option<&Credential>,
     credential_id: &CredentialId,
 ) -> Result<(), CatalogError> {

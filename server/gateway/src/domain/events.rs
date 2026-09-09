@@ -18,7 +18,7 @@ pub enum DomainEvent {
     },
     UsageRecorded {
         credential_id: CredentialId,
-        alias: String,
+        pool: String,
         tokens: TokenUsage,
         cost: Money,
         succeeded: bool,

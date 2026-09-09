@@ -1,7 +1,7 @@
-//! 删除模型别名
+//! 删除账号池
 
 /// 入站数据
 #[derive(Debug, Clone)]
-pub struct DeleteModelAlias {
+pub struct DeleteAccountPool {
     pub name: String,
 }

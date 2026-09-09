@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 
 use crate::domain::aggregates::Granularity;
-use crate::domain::values::{AliasName, CredentialId, HealthStatus, Money, Protocol, TokenUsage};
+use crate::domain::values::{CredentialId, HealthStatus, Money, PoolName, Protocol, TokenUsage};
 
 use super::PortError;
 
@@ -38,8 +38,8 @@ pub struct UpstreamRefView {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AliasView {
-    pub name: AliasName,
+pub struct AccountPoolView {
+    pub name: PoolName,
     pub strategy: String,
     pub refs: Vec<UpstreamRefView>,
 }
@@ -55,7 +55,7 @@ pub struct UsageBucketView {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RequestLogView {
     pub at: DateTime<Utc>,
-    pub alias: String,
+    pub pool: String,
     pub credential_name: String,
     pub tokens: TokenUsage,
     pub latency_ms: u64,
@@ -90,8 +90,8 @@ pub trait CredentialQuery: Send + Sync {
 }
 
 #[async_trait]
-pub trait AliasQuery: Send + Sync {
-    async fn list(&self) -> Result<Vec<AliasView>, PortError>;
+pub trait AccountPoolQuery: Send + Sync {
+    async fn list(&self) -> Result<Vec<AccountPoolView>, PortError>;
 }
 
 #[async_trait]
