@@ -1,0 +1,20 @@
+# Rust
+target/
+
+# IDE & Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+dist/
+out/
+
+coverage/
+
+logs/
+*.log
+
+.env
+.env*.local
