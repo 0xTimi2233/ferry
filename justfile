@@ -2,47 +2,47 @@ default:
     @just --list
 
 # 提交前全量校验
-[group('全仓')]
+[group('all')]
 ci: check lint test audit
 
 # 全仓格式检查
-[group('全仓')]
+[group('all')]
 check: check-server
 
 # 全仓静态检查
-[group('全仓')]
+[group('all')]
 lint: lint-server
 
 # 全仓测试
-[group('全仓')]
+[group('all')]
 test: test-server
 
 # 全仓依赖审计
-[group('全仓')]
+[group('all')]
 audit: audit-server
 
 # 代码格式规范检查
-[group('服务端')]
+[group('server')]
 check-server:
     cargo fmt --check
 
 # 代码规范静态检查
-[group('服务端')]
+[group('server')]
 lint-server:
     cargo clippy --all-targets --all-features -- -D warnings
 
 # 全量测试
-[group('服务端')]
+[group('server')]
 test-server:
     cargo test --all-features
 
 # 依赖漏洞审计
-[group('服务端')]
+[group('server')]
 audit-server:
     cargo deny check
 
 # 批量同步标准标签到指定的 GitHub 仓库，用法如 just sync-labels 0xTimi2233/target-repo
-[group('协作')]
+[group('github')]
 sync-labels repo:
     #!/usr/bin/env bash
     set -euo pipefail
