@@ -1,0 +1,24 @@
+# cargo-deny 配置：依赖漏洞、许可证合规、重复依赖检查
+# 文档：https://embarkstudios.github.io/cargo-deny/
+
+[graph]
+all-features = true
+
+[output]
+feature-depth = 1
+
+# 依赖漏洞：对接 RustSec 公告库
+[advisories]
+version = 2
+yanked = "warn"
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+allow-wildcard-paths = true
+highlight = "all"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

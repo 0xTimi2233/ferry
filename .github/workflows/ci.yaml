@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.head.sha || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_TOOLCHAIN: "1.98.1"
+
+jobs:
+  checks:
+    name: 检查与测试
+    uses: ./.github/workflows/checks.yaml
+
+  security:
+    name: 安全审计
+    permissions:
+      contents: read
+      security-events: write
+    uses: ./.github/workflows/security.yaml
+
+  coverage:
+    name: 覆盖率分析
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@d1031067263f94b142dd6c0ce24c5eb9d02d52a0 # master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: taiki-e/install-action@84f5ac3124727fb3d284d4d22ee9ab3654fd09a6 # v2.87.7
+        with:
+          tool: cargo-llvm-cov
+      - name: 生成代码覆盖率数据
+        run: |
+          cargo llvm-cov --lcov --output-path lcov.info
+          cargo llvm-cov --summary-only >> $GITHUB_STEP_SUMMARY
+      - name: 上报覆盖率至 Codecov
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        with:
+          files: lcov.info
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: true
+
+  gate:
+    name: 合并门禁
+    needs: [checks, security]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: 校验上游检查结果
+        env:
+          CHECKS_RESULT: ${{ needs.checks.result }}
+          SECURITY_RESULT: ${{ needs.security.result }}
+        run: |
+          echo "检查与测试：$CHECKS_RESULT"
+          echo "安全审计：$SECURITY_RESULT"
+          if [ "$CHECKS_RESULT" != "success" ] || [ "$SECURITY_RESULT" != "success" ]; then
+            echo "上游检查未全部通过，阻断合并"
+            exit 1
+          fi
