@@ -1,8 +1,8 @@
 [workspace]
 resolver = "3"
 members = [
-    "server/shared_kernel",
-    "server/app",
+    "server/shared-kernel",
+    "server/ferry-server",
 ]
 
 [workspace.package]

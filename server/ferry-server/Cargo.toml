@@ -11,7 +11,7 @@ repository.workspace = true
 workspace = true
 
 [dependencies]
-shared-kernel = { path = "../shared_kernel" }
+shared-kernel = { path = "../shared-kernel" }
 
 [package.metadata.dist]
 dist = true
