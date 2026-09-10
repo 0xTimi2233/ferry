@@ -467,8 +467,9 @@ impl Alias {
         self.targets.push(target);
     }
 
-    /// 按优先级与权重挑选目标：先取优先级最高的目标集合，再按权重在其中挑选。
-    /// `roll` 为 [0, 1) 内的取值，由调用方给出以便可重现；权重为零的目标不参与轮询。
+    /// 按优先级与权重挑选目标：先取优先级最高的目标集合，再按权重在该集合内挑选。
+    /// `roll` 为 [0, 1) 内的均匀取值，由调用方给出以便可重现；越界或非有限值按 0 处理。
+    /// 区间为左闭右开，边界值归右侧目标；权重为零的目标不参与轮询。
     pub fn select_target(&self, roll: f64) -> Option<&AliasTarget> {
         let best = self
             .targets
@@ -485,7 +486,12 @@ impl Alias {
         if total == 0 {
             return None;
         }
-        let mut point = (roll.clamp(0.0, 1.0) * total as f64) as u64;
+        let roll = if roll.is_finite() {
+            roll.clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        let mut point = ((roll * total as f64) as u64).min(total - 1);
         for target in pool {
             let weight = u64::from(target.weight().value());
             if point < weight {

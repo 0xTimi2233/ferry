@@ -1,7 +1,8 @@
 //! 生成契约
 //!
-//! 入站数据类型与对外响应形状的单一真源是 `contracts/proto/`，本 crate 只承载生成结果。
-//! 切片引用这里的类型，改动形状必须从 proto 改起；JSON 编解码由 pbjson 按 proto3 JSON
+//! 管理面的入站请求、响应与视图以 `contracts/proto/` 为单一真源，本 crate 承载生成结果；
+//! 协议面的入参出参由 `domain/canonical.rs` 承载，见 ADR 0001。
+//! 切片引用这里的类型，改动管理面形状必须从 proto 改起；JSON 编解码由 pbjson 按 proto3 JSON
 //! 映射生成，切片不得自行定义响应结构。
 
 pub mod gateway {

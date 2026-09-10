@@ -72,6 +72,8 @@ pub struct CanonicalRequest {
     pub messages: Vec<Message>,
     pub tools: Vec<ToolDefinition>,
     pub sampling: Sampling,
+    /// 客户端声明的流式意图。端口的方法选择必须与它一致，
+    /// 即 `stream` 为真时只能走 `invoke_stream`。
     pub stream: bool,
 }
 
@@ -108,8 +110,9 @@ pub struct InvokeCommand {
 /// 流式响应的单个事件，逐块转发给客户端
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CanonicalEvent {
-    /// 增量内容
-    Delta(ContentBlock),
+    /// 增量内容。`index` 标识所属内容块，同一块的增量按序到达；
+    /// 首片携带完整标识，后续片只带增量文本。
+    Delta { index: u32, block: ContentBlock },
     /// 结束，携带结束原因与累计用量
     Finished {
         finish: FinishReason,

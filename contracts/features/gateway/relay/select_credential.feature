@@ -39,8 +39,10 @@ Feature: 选定凭证
   @wip @relay-select_credential_weight
   Scenario: 同优先级的目标按权重分担流量
     Given 别名 "deepseek-chat" 的两个目标优先级同为 1，权重分别为 1 与 3
-    When 以取值 0.0、0.25 与 0.99 分别选定一次
-    Then 前两次落在权重较低的目标上，第三次落在权重较高的目标上
+    When 以取值 0.1、0.25 与 0.9 分别选定一次
+    Then 取值 0.1 落在权重较低的目标上
+    And 取值 0.25 与 0.9 落在权重较高的目标上
+    And 权重区间的边界值归右侧目标
 
   @wip @relay-select_credential_zero_weight
   Scenario: 权重为零的目标不参与轮询
