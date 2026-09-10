@@ -28,6 +28,14 @@ Feature: 选定凭证
     Then 返回该凭证
     And 凭证健康状态回到可用
 
+  @wip @relay-select_credential_paths
+  Scenario: 别名有多个目标时按优先级与权重选定
+    Given 别名 "deepseek-chat" 指向账号组 "g-deepseek" 与 "g-deepseek-backup"
+    And 前者优先级为 1、权重为 1，后者优先级为 2、权重为 100
+    When 为一次请求选定凭证
+    Then 选定落在优先级更高的 "g-deepseek" 上
+    And 权重更高的低优先级目标不会被选中
+
   @wip @relay-select_credential_session_affinity
   Scenario: 同一会话固定使用同一凭证
     Given 会话粘性已开启

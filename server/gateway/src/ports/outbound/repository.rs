@@ -2,6 +2,8 @@
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use futures_core::Stream;
+use std::pin::Pin;
 
 use crate::domain::aggregates::{Alias, Credential, CredentialGroup, Settings, UsageRecord};
 use crate::domain::values::{
@@ -116,11 +118,10 @@ pub struct UpstreamCall {
     pub stream: bool,
 }
 
-/// 上游响应
+/// 上游响应的头部信息，流式与非流式共用
 #[derive(Debug, Clone)]
-pub struct UpstreamResponse {
+pub struct UpstreamHead {
     pub status: u16,
-    pub body: Vec<u8>,
     /// 上游给出的重试等待秒数
     pub retry_after_seconds: Option<u64>,
     /// 配额耗尽且不可重试
@@ -128,6 +129,27 @@ pub struct UpstreamResponse {
     /// 上游水位头，原样透传给客户端
     pub rate_limit_headers: Vec<(String, String)>,
 }
+
+/// 上游响应，非流式调用一次给出头与完整正文
+#[derive(Debug, Clone)]
+pub struct UpstreamResponse {
+    pub head: UpstreamHead,
+    pub body: Vec<u8>,
+}
+
+/// 流式调用的单个事件
+#[derive(Debug, Clone)]
+pub enum UpstreamChunk {
+    /// 响应头。流式调用的首个事件必为它，切片据此在提交响应头前处理终局拒绝
+    Head(UpstreamHead),
+    /// 增量字节。协议解析由适配器完成，此处只转发原始分块
+    Body(Vec<u8>),
+    /// 上游正常结束
+    End,
+}
+
+/// 上游增量事件的流，由适配器实现，切片只消费
+pub type UpstreamStream = Pin<Box<dyn Stream<Item = Result<UpstreamChunk, PortError>> + Send>>;
 
 /// 换取的订阅令牌
 #[derive(Debug, Clone)]
@@ -143,7 +165,13 @@ pub struct ExchangedToken {
 pub trait UpstreamClient: Send + Sync {
     async fn fetch_models(&self, call: UpstreamCall) -> Result<Vec<UpstreamModelId>, PortError>;
 
+    /// 非流式调用，一次返回头部与完整正文
     async fn invoke(&self, call: UpstreamCall) -> Result<UpstreamResponse, PortError>;
+
+    /// 流式调用。首个事件必为 `UpstreamChunk::Head`，
+    /// 切片据此在提交响应头前处理终局拒绝；`End` 之后不再产出事件。
+    /// 连续两次事件之间的空闲超过 `UpstreamTimeouts.read_seconds` 时以 `PortError` 结束。
+    async fn invoke_stream(&self, call: UpstreamCall) -> Result<UpstreamStream, PortError>;
 
     /// 由授权码换取令牌
     async fn exchange_authorization_code(

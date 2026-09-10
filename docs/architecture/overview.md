@@ -105,9 +105,9 @@ flowchart TB
 | `UpstreamFailed` | 502 | 错误体的 `upstream` 为变体携带的上游名，端口层给不出名称时为空 |
 | `AllCredentialsUnavailable` | 503 | `Retry-After` 为 `recover_at` 距当前的秒数，`recover_at` 为空时不带该头 |
 
-错误体只有两种载体。管理面用 `ErrorResponse`，即 `{ "error": { "code", "message", "upstream" } }`；协议面按各自协议返回原生错误结构，上游名称写在其中的错误信息字段。`ErrorCode` 与分档一一对应。
+错误体只有两种载体。管理面用 `ErrorResponse`，即 `{ "error": { "code", "message", "upstream" } }`；协议面沿用 OpenAI 兼容的错误封套并附加 `upstream` 字段，即 `{ "error": { "message", "type", "upstream" } }`，两种载体里 `upstream` 都是上游名称，为空时省略。`ErrorCode` 与管理面的 `code` 一一对应，协议面的 `type` 取同一枚举的大写枚举名。协议面与管理面共用上表的状态码。
 
-管理面请求与响应都是 JSON，字段名取 proto3 JSON 的 camelCase，枚举取大写枚举名，时间取 RFC 3339 的 UTC 时刻，均由生成链的 JSON 编解码保证。
+管理面请求与响应都是 JSON，字段名取 proto3 JSON 的 camelCase，枚举取大写枚举名，时间取 RFC 3339 的 UTC 时刻，均由生成链的 JSON 编解码保证。协议面的报文形态跟随各自上游规范，不受本节约束。
 
 鉴权校验不是领域行为。ferry 为单用户单密钥，无角色与权限矩阵，因此不划入任何用例；访问密钥的生成、轮换与持久化是领域行为，落在 `manage_settings` 用例。出现多用户、角色、权限矩阵或租户隔离时，才拆分独立的身份上下文。
 
@@ -119,7 +119,7 @@ flowchart TB
 - 日志与追踪：每次请求注入请求 ID 与会话 ID，凭证与密钥在日志中脱敏，流式响应记录首字节延迟与总时长
 - 超时：分层设置，连接、首字节、单次读、整体上限各自独立，不用单一 deadline，四者以 `UpstreamCall.timeouts` 表达
 - 限流与冷却：在途并发用信号量按凭证与账号组两级限制；上游 429 作为配额水位信号处理，读取 `Retry-After` 与配额头，区分可重试的短窗口限流与不可重试的硬配额耗尽，冷却阶梯按窗口去重并叠加抖动，上游水位头经 `UpstreamResponse.rate_limit_headers` 透传给客户端
-- 流式响应的配额耗尽：响应头提交前缓冲握手事件，发现终局拒绝时返回可重试的 HTTP 错误；已提交后走流内错误事件，槽位释放绑定请求取消
+- 流式响应的配额耗尽：`UpstreamClient::invoke_stream` 的首个事件必为响应头，切片在提交响应头前读到终局拒绝时返回可重试的 HTTP 错误；已提交后走流内错误事件，且流内错误事件同时携带已发生的用量，槽位释放绑定请求取消。连续两次增量之间的空闲超过 `UpstreamTimeouts.read_seconds` 时以出站错误结束该流。
 - 优雅关闭：收到终止信号后停止接受新请求，等待在途流式响应结束或超时
 
 ## 部署形态

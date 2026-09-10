@@ -61,8 +61,8 @@ message QueryUsageSummaryResponse {
 message QueryRequestLogsRequest {
   // 缺省表示不按别名筛选。
   optional string alias = 1;
-  // 缺省表示不按凭证筛选。
-  optional string credential = 2;
+  // 按凭证名称筛选，缺省表示不筛选。
+  optional string credential_name = 2;
   bool only_failed = 3;
 }
 

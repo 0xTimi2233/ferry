@@ -467,6 +467,35 @@ impl Alias {
         self.targets.push(target);
     }
 
+    /// 按优先级与权重挑选目标：先取优先级最高的目标集合，再按权重在其中挑选。
+    /// `roll` 为 [0, 1) 内的取值，由调用方给出以便可重现；权重为零的目标不参与轮询。
+    pub fn select_target(&self, roll: f64) -> Option<&AliasTarget> {
+        let best = self
+            .targets
+            .iter()
+            .filter(|t| t.weight().is_participating())
+            .min_by_key(|t| t.priority().value())?;
+        let priority = best.priority().value();
+        let pool: Vec<&AliasTarget> = self
+            .targets
+            .iter()
+            .filter(|t| t.priority().value() == priority && t.weight().is_participating())
+            .collect();
+        let total: u64 = pool.iter().map(|t| u64::from(t.weight().value())).sum();
+        if total == 0 {
+            return None;
+        }
+        let mut point = (roll.clamp(0.0, 1.0) * total as f64) as u64;
+        for target in pool {
+            let weight = u64::from(target.weight().value());
+            if point < weight {
+                return Some(target);
+            }
+            point -= weight;
+        }
+        None
+    }
+
     pub fn references_group(&self, group: &GroupId) -> bool {
         self.targets.iter().any(|t| t.group() == group)
     }

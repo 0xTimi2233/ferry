@@ -115,8 +115,8 @@ pub enum CanonicalEvent {
         finish: FinishReason,
         usage: TokenUsage,
     },
-    /// 流内错误，发完即结束流
-    Failed { reason: String },
+    /// 流内错误，发完即结束流。已发生的用量一并带出，供落账侧记账
+    Failed { reason: String, usage: TokenUsage },
 }
 
 /// 统一表示到底层协议或从底层协议翻译失败
