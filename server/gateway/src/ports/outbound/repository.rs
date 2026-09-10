@@ -106,16 +106,22 @@ pub struct UpstreamTimeouts {
     pub total_seconds: u64,
 }
 
-/// 一次上游调用的入参，明文密钥只在此处出现
+/// 一次上游调用的公共入参，明文密钥只在此处出现。
+/// 适配器是唯一接触线上协议的地方，请求与响应都换算成领域的统一表示后再跨本端口。
 #[derive(Debug, Clone)]
 pub struct UpstreamCall {
     pub provider: crate::domain::values::Provider,
     pub secret: Secret,
     pub protocol: crate::domain::values::Protocol,
-    pub upstream_model: UpstreamModelId,
     pub timeouts: UpstreamTimeouts,
-    pub body: Vec<u8>,
-    pub stream: bool,
+}
+
+/// 一次模型调用的上游入参，目标模型与统一表示请求都在此处
+#[derive(Debug, Clone)]
+pub struct InvokeCall {
+    pub call: UpstreamCall,
+    pub upstream_model: UpstreamModelId,
+    pub request: crate::domain::canonical::CanonicalRequest,
 }
 
 /// 上游响应的头部信息，流式与非流式共用
@@ -130,11 +136,11 @@ pub struct UpstreamHead {
     pub rate_limit_headers: Vec<(String, String)>,
 }
 
-/// 上游响应，非流式调用一次给出头与完整正文
+/// 上游响应，非流式调用一次给出头与已翻译成统一表示的正文
 #[derive(Debug, Clone)]
 pub struct UpstreamResponse {
     pub head: UpstreamHead,
-    pub body: Vec<u8>,
+    pub response: crate::domain::canonical::CanonicalResponse,
 }
 
 /// 流式调用的单个事件
@@ -142,13 +148,13 @@ pub struct UpstreamResponse {
 pub enum UpstreamChunk {
     /// 响应头。流式调用的首个事件必为它，切片据此在提交响应头前处理终局拒绝
     Head(UpstreamHead),
-    /// 增量字节。协议解析由适配器完成，此处只转发原始分块
-    Body(Vec<u8>),
+    /// 已翻译成统一表示的增量事件，切片只做转发
+    Event(crate::domain::canonical::CanonicalEvent),
     /// 上游正常结束
     End,
 }
 
-/// 上游增量事件的流，由适配器实现，切片只消费
+/// 上游增量事件的流，由适配器实现，切片只消费。丢弃该流即取消上游请求。
 pub type UpstreamStream = Pin<Box<dyn Stream<Item = Result<UpstreamChunk, PortError>> + Send>>;
 
 /// 换取的订阅令牌
@@ -160,18 +166,19 @@ pub struct ExchangedToken {
     pub account: Option<String>,
 }
 
-/// 上游客户端：按 `UpstreamCall.provider` 选择端点，`invoke` 不自行重试，重试由调度层决定
+/// 上游客户端：按上游名选择端点，`invoke` 与 `invoke_stream` 不自行重试，重试由调度层决定。
+/// 协议翻译在适配器内完成，本端口只收发领域的统一表示。
 #[async_trait]
 pub trait UpstreamClient: Send + Sync {
     async fn fetch_models(&self, call: UpstreamCall) -> Result<Vec<UpstreamModelId>, PortError>;
 
-    /// 非流式调用，一次返回头部与完整正文
-    async fn invoke(&self, call: UpstreamCall) -> Result<UpstreamResponse, PortError>;
+    /// 非流式调用，一次返回头部与已翻译的统一表示响应
+    async fn invoke(&self, call: InvokeCall) -> Result<UpstreamResponse, PortError>;
 
     /// 流式调用。首个事件必为 `UpstreamChunk::Head`，
     /// 切片据此在提交响应头前处理终局拒绝；`End` 之后不再产出事件。
     /// 连续两次事件之间的空闲超过 `UpstreamTimeouts.read_seconds` 时以 `PortError` 结束。
-    async fn invoke_stream(&self, call: UpstreamCall) -> Result<UpstreamStream, PortError>;
+    async fn invoke_stream(&self, call: InvokeCall) -> Result<UpstreamStream, PortError>;
 
     /// 由授权码换取令牌
     async fn exchange_authorization_code(

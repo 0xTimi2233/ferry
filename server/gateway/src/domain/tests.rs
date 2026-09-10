@@ -480,3 +480,55 @@ fn should_update_retention_days() -> TestResult {
     assert_eq!(settings.granularity(), Granularity::Daily);
     Ok(())
 }
+
+#[test]
+fn should_select_alias_target_by_priority_before_weight() -> TestResult {
+    let mut alias = Alias::create(
+        alias_name("deepseek-chat")?,
+        target("t1", group_id(), "deepseek-chat")?,
+    );
+    let mut heavy = target("t2", GroupId::new("g-openai"), "gpt-5")?;
+    heavy.tune(Weight::new(100), Priority::new(2)?);
+    alias.add_target(heavy);
+
+    let picked = alias.select_target(0.99).ok_or("应有可选目标")?;
+
+    assert_eq!(picked.id().as_str(), "t1");
+    Ok(())
+}
+
+#[test]
+fn should_select_alias_target_by_weight_within_same_priority() -> TestResult {
+    let mut alias = Alias::create(
+        alias_name("deepseek-chat")?,
+        target("t1", group_id(), "deepseek-chat")?,
+    );
+    let mut second = target("t2", GroupId::new("g-openai"), "gpt-5")?;
+    second.tune(Weight::new(3), Priority::new(1)?);
+    alias.add_target(second);
+
+    let first_in_pool = alias.select_target(0.0).ok_or("应有可选目标")?;
+    let rest = alias.select_target(0.25).ok_or("应有可选目标")?;
+    let tail = alias.select_target(0.99).ok_or("应有可选目标")?;
+
+    assert_eq!(first_in_pool.id().as_str(), "t1");
+    assert_eq!(rest.id().as_str(), "t2");
+    assert_eq!(tail.id().as_str(), "t2");
+    Ok(())
+}
+
+#[test]
+fn should_skip_zero_weight_alias_targets() -> TestResult {
+    let mut alias = Alias::create(
+        alias_name("deepseek-chat")?,
+        target("t1", group_id(), "deepseek-chat")?,
+    );
+    let mut idle = target("t2", GroupId::new("g-openai"), "gpt-5")?;
+    idle.tune(Weight::new(0), Priority::new(1)?);
+    alias.add_target(idle);
+
+    let picked = alias.select_target(0.99).ok_or("应有可选目标")?;
+
+    assert_eq!(picked.id().as_str(), "t1");
+    Ok(())
+}

@@ -34,4 +34,4 @@ just test      # 仅测试
 just audit     # 仅依赖与合规审计
 ```
 
-接口形状的单一真源是 `contracts/proto/`，构建时由 `server/contracts` 的 `build.rs` 生成 Rust 类型，Rust 侧不需要 `protoc`。业务行为契约以 `.feature` 文件承载，执行载体由支撑切片落地，统一入口为 `just test-contracts`。
+接口形状的真源有两处：管理面的入站请求、响应与视图以 `contracts/proto/` 为单一真源，构建时由 `server/contracts` 的 `build.rs` 生成 Rust 类型，Rust 侧不需要 `protoc`；协议面的入参出参由 `domain/canonical.rs` 承载，见 [ADR 0001](docs/adr/0001-canonical-format.md)。业务行为契约以 `.feature` 文件承载，执行载体由支撑切片落地，统一入口为 `just test-contracts`。

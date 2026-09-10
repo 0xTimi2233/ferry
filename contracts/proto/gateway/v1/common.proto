@@ -102,8 +102,8 @@ enum ErrorCode {
   ERROR_CODE_INTERNAL = 9;
 }
 
-// 管理面的统一错误响应。协议面的失败按各自协议的原生错误结构返回，
-// 上游名称写在其中的错误信息字段，不共用本结构。
+// 管理面的统一错误响应。协议面的错误体形状见 docs/architecture/overview.md 的失败状态码映射一节，
+// 四个面共用同一组状态码。
 message ErrorResponse {
   Error error = 1;
 }

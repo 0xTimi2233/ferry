@@ -105,9 +105,18 @@ flowchart TB
 | `UpstreamFailed` | 502 | 错误体的 `upstream` 为变体携带的上游名，端口层给不出名称时为空 |
 | `AllCredentialsUnavailable` | 503 | `Retry-After` 为 `recover_at` 距当前的秒数，`recover_at` 为空时不带该头 |
 
-错误体只有两种载体。管理面用 `ErrorResponse`，即 `{ "error": { "code", "message", "upstream" } }`；协议面沿用 OpenAI 兼容的错误封套并附加 `upstream` 字段，即 `{ "error": { "message", "type", "upstream" } }`，两种载体里 `upstream` 都是上游名称，为空时省略。
+错误体一律是 `{ "error": { ... } }` 形状，`upstream` 是出错的上游名称，未知时省略。四个面各自沿用其客户端的原生封套，只在内层多一个 `upstream` 字段，形状的真源就是本表：
 
-上游失败时，知道上游名称的切片用 `UseCaseError::upstream_failed` 直接构造分档，不要依赖 `From<PortError>` 的降级结果；只有出站端口层报错、切片也无从得知名称时，`upstream` 才为空。`ErrorCode` 与管理面的 `code` 一一对应，协议面的 `type` 取同一枚举的大写枚举名。协议面与管理面共用上表的状态码。
+| 面 | 错误体形状 |
+|---|---|
+| 管理面 | `{ "error": { "code", "message", "upstream" } }` |
+| OpenAI Chat Completions 与 Responses | `{ "error": { "type", "message", "upstream" } }` |
+| Anthropic Messages | `{ "type": "error", "error": { "type", "message", "upstream" } }` |
+| Gemini | `{ "error": { "code", "message", "status", "upstream" } }`，`code` 取 HTTP 状态码 |
+
+上表中的 `code` 取 `ErrorCode` 的枚举名去掉 `ERROR_CODE_` 前缀后的小写形式，`type` 与 `status` 同口径。四个面共用同一组状态码。除本节与 `contracts/proto/gateway/v1/common.proto` 外，其余文档不再重述错误体形状。
+
+上游失败时，知道上游名称的切片直接构造 `UseCaseError::UpstreamFailed` 或调用 `upstream_failed`，不要依赖 `From<PortError>` 的降级结果；只有出站端口层报错、切片也无从得知名称时，`upstream` 才省略。连接失败与流式空闲超时没有状态码，直接构造变体并把 `status` 留空。
 
 管理面请求与响应都是 JSON，字段名取 proto3 JSON 的 camelCase，枚举取大写枚举名，时间取 RFC 3339 的 UTC 时刻，均由生成链的 JSON 编解码保证。协议面的报文形态跟随各自上游规范，不受本节约束。
 
@@ -119,7 +128,7 @@ flowchart TB
 
 - 错误处理：领域错误按可恢复性分级，对外统一为协议规定的错误结构，不把上游原始错误直接透传给客户端；上游错误在诊断信息里保留来源
 - 日志与追踪：每次请求注入请求 ID 与会话 ID，凭证与密钥在日志中脱敏，流式响应记录首字节延迟与总时长
-- 超时：分层设置，连接、首字节、单次读、整体上限各自独立，不用单一 deadline，四者以 `UpstreamCall.timeouts` 表达
+- 超时：分层设置，连接、首字节、单次读、整体上限各自独立，不用单一 deadline，四者以 `UpstreamCall.timeouts` 表达；流式调用的读取空闲上限同样取 `read_seconds`
 - 限流与冷却：在途并发用信号量按凭证与账号组两级限制；上游 429 作为配额水位信号处理，读取 `Retry-After` 与配额头，区分可重试的短窗口限流与不可重试的硬配额耗尽，冷却阶梯按窗口去重并叠加抖动，上游水位头经 `UpstreamResponse.rate_limit_headers` 透传给客户端
 - 流式响应的配额耗尽：`UpstreamClient::invoke_stream` 的首个事件必为响应头，切片在提交响应头前读到终局拒绝时返回可重试的 HTTP 错误；已提交后走流内错误事件，且流内错误事件同时携带已发生的用量，槽位释放绑定请求取消。连续两次增量之间的空闲超过 `UpstreamTimeouts.read_seconds` 时以出站错误结束该流。
 - 优雅关闭：收到终止信号后停止接受新请求，等待在途流式响应结束或超时

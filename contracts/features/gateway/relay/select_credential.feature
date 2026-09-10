@@ -36,6 +36,18 @@ Feature: 选定凭证
     Then 选定落在优先级更高的 "g-deepseek" 上
     And 权重更高的低优先级目标不会被选中
 
+  @wip @relay-select_credential_weight
+  Scenario: 同优先级的目标按权重分担流量
+    Given 别名 "deepseek-chat" 的两个目标优先级同为 1，权重分别为 1 与 3
+    When 以取值 0.0、0.25 与 0.99 分别选定一次
+    Then 前两次落在权重较低的目标上，第三次落在权重较高的目标上
+
+  @wip @relay-select_credential_zero_weight
+  Scenario: 权重为零的目标不参与轮询
+    Given 别名 "deepseek-chat" 的两个目标优先级同为 1，其中一个权重为零
+    When 为一次请求选定凭证
+    Then 选定落在权重非零的目标上
+
   @wip @relay-select_credential_session_affinity
   Scenario: 同一会话固定使用同一凭证
     Given 会话粘性已开启
