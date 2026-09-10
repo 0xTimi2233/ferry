@@ -1,0 +1,74 @@
+// 计量模块入站契约：按天聚合的用量汇总与请求日志查询。
+
+syntax = "proto3";
+
+package gateway.v1;
+
+import "gateway/v1/common.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// 用量分档视图，对应出站查询类型的 UsageBucketView。
+message UsageBucketView {
+  // 分档起始日，日期取值与粒度相关。
+  string day = 1;
+  uint64 requests = 2;
+  TokenUsage tokens = 3;
+  // 折算金额，为该档各条记录的合计：不计价记录记零，该档存在未定价记录时本字段缺省，
+  // 表示合计不完整。价格来源见 docs/architecture/overview.md 的计量口径。
+  Money cost = 4;
+}
+
+// 请求日志视图，对应出站查询类型的 RequestLogView。
+message RequestLogView {
+  // 调用发生时刻，JSON 形态符合 RFC 3339
+  google.protobuf.Timestamp at = 1;
+  string alias = 2;
+  string credential_name = 3;
+  TokenUsage tokens = 4;
+  uint64 latency_ms = 5;
+  bool succeeded = 6;
+  // 失败原因，成功记录为空。
+  optional string failure_reason = 7;
+  bool affinity_hit = 8;
+}
+
+// 计量模块用例集合。
+service MeteringService {
+  // 查询用量汇总。
+  rpc QueryUsageSummary(QueryUsageSummaryRequest) returns (QueryUsageSummaryResponse) {
+    option (google.api.http) = {
+      get: "/admin/metering/usage"
+    };
+  }
+
+  // 查询请求日志。
+  rpc QueryRequestLogs(QueryRequestLogsRequest) returns (QueryRequestLogsResponse) {
+    option (google.api.http) = {
+      get: "/admin/metering/logs"
+    };
+  }
+}
+
+message QueryUsageSummaryRequest {
+  // 统计区间长度，以天计。
+  uint32 days = 1;
+  // 统计指标，决定分档主值的展示口径。
+  UsageMetric metric = 2;
+}
+
+message QueryUsageSummaryResponse {
+  repeated UsageBucketView buckets = 1;
+}
+
+message QueryRequestLogsRequest {
+  // 缺省表示不按别名筛选。
+  optional string alias = 1;
+  // 按凭证名称筛选，缺省表示不筛选。
+  optional string credential_name = 2;
+  bool only_failed = 3;
+}
+
+message QueryRequestLogsResponse {
+  repeated RequestLogView logs = 1;
+}

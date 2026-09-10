@@ -5,7 +5,7 @@ default:
 ci: check lint test audit
 
 [group('all')]
-check: check-server
+check: check-server check-web
 
 [group('all')]
 lint: lint-server
@@ -21,6 +21,10 @@ check-server:
     cargo fmt --check
 
 [group('server')]
+fmt-server:
+    cargo fmt --all
+
+[group('server')]
 lint-server:
     cargo clippy --all-targets --all-features -- -D warnings
 
@@ -31,6 +35,14 @@ test-server:
 [group('server')]
 audit-server:
     cargo deny check advisories bans sources
+
+[group('web')]
+check-web:
+    bun run check
+
+[group('web')]
+format-web:
+    bun run format
 
 [group('github')]
 sync-labels repo:

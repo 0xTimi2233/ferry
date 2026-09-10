@@ -1,0 +1,388 @@
+//! 值对象
+
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct CredentialId(String);
+
+impl CredentialId {
+    pub fn new(raw: impl Into<String>) -> Self {
+        Self(raw.into())
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct AliasName(String);
+
+impl AliasName {
+    pub fn new(raw: impl Into<String>) -> Result<Self, InvalidValue> {
+        let raw = raw.into();
+        if raw.trim().is_empty() {
+            return Err(InvalidValue::Blank("别名"));
+        }
+        Ok(Self(raw))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct Provider(String);
+
+impl Provider {
+    pub fn new(raw: impl Into<String>) -> Result<Self, InvalidValue> {
+        let raw = raw.into();
+        if raw.trim().is_empty() {
+            return Err(InvalidValue::Blank("上游"));
+        }
+        Ok(Self(raw))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    pub fn supports_subscription(&self) -> bool {
+        matches!(self.as_str(), "OpenAI" | "Anthropic")
+    }
+
+    pub fn default_protocol(&self) -> Protocol {
+        match self.as_str() {
+            "Anthropic" => Protocol::AnthropicMessages,
+            "Gemini" => Protocol::Gemini,
+            _ => Protocol::OpenAiChat,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Protocol {
+    OpenAiChat,
+    OpenAiResponses,
+    AnthropicMessages,
+    Gemini,
+}
+
+impl Protocol {
+    /// 对外文案用的协议名，与入站承载面的四条路径同名
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::OpenAiChat => "OpenAI Chat Completions",
+            Self::OpenAiResponses => "OpenAI Responses",
+            Self::AnthropicMessages => "Anthropic Messages",
+            Self::Gemini => "Gemini",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct UpstreamModelId(String);
+
+impl UpstreamModelId {
+    pub fn new(raw: impl Into<String>) -> Result<Self, InvalidValue> {
+        let raw = raw.into();
+        if raw.trim().is_empty() {
+            return Err(InvalidValue::Blank("上游模型"));
+        }
+        Ok(Self(raw))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct AliasTargetId(String);
+
+impl AliasTargetId {
+    pub fn new(raw: impl Into<String>) -> Self {
+        Self(raw.into())
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct GroupId(String);
+
+impl GroupId {
+    pub fn new(raw: impl Into<String>) -> Self {
+        Self(raw.into())
+    }
+
+    /// 账号组按上游划分，标识由上游派生
+    pub fn for_provider(provider: &Provider) -> Self {
+        Self(format!("g-{}", provider.as_str().to_lowercase()))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// 数值越小越优先
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct Priority(u16);
+
+impl Priority {
+    pub fn new(raw: u16) -> Result<Self, InvalidValue> {
+        if raw == 0 {
+            return Err(InvalidValue::OutOfRange("优先级"));
+        }
+        Ok(Self(raw))
+    }
+
+    pub fn value(&self) -> u16 {
+        self.0
+    }
+}
+
+impl Default for Priority {
+    fn default() -> Self {
+        Self(1)
+    }
+}
+
+/// 零表示不参与轮询
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Weight(u32);
+
+impl Weight {
+    pub fn new(raw: u32) -> Self {
+        Self(raw)
+    }
+
+    pub fn value(&self) -> u32 {
+        self.0
+    }
+
+    pub fn is_participating(&self) -> bool {
+        self.0 > 0
+    }
+}
+
+impl Default for Weight {
+    fn default() -> Self {
+        Self(1)
+    }
+}
+
+/// 密钥明文，只在校验与写入时短暂持有
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Secret(String);
+
+impl Secret {
+    pub fn new(raw: impl Into<String>) -> Result<Self, InvalidValue> {
+        let raw = raw.into();
+        if raw.trim().is_empty() {
+            return Err(InvalidValue::Blank("密钥"));
+        }
+        Ok(Self(raw))
+    }
+
+    pub fn expose(&self) -> &str {
+        &self.0
+    }
+
+    /// 保留首尾各四位，其余以圆点替代
+    pub fn mask(&self) -> String {
+        let chars: Vec<char> = self.0.chars().collect();
+        if chars.len() <= 8 {
+            return "•".repeat(chars.len());
+        }
+        let head: String = chars.iter().take(4).collect();
+        let tail: String = chars.iter().skip(chars.len() - 4).collect();
+        format!("{head}••••••{tail}")
+    }
+}
+
+impl std::fmt::Debug for Secret {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("<secret>")
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum HealthStatus {
+    Ready,
+    Cooling {
+        reason: String,
+        recover_at: chrono::DateTime<chrono::Utc>,
+    },
+    Disabled,
+    Failed {
+        reason: String,
+    },
+}
+
+impl HealthStatus {
+    pub fn is_available(&self) -> bool {
+        matches!(self, Self::Ready)
+    }
+
+    pub fn is_failed(&self) -> bool {
+        matches!(self, Self::Failed { .. })
+    }
+
+    /// 冷却到期后恢复可用
+    pub fn recovered_after_cooldown(&self, now: chrono::DateTime<chrono::Utc>) -> Self {
+        match self {
+            Self::Cooling { recover_at, .. } if *recover_at <= now => Self::Ready,
+            other => other.clone(),
+        }
+    }
+}
+
+/// 重试策略，描述失败后如何换凭证
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RetryPolicy {
+    /// 追加的重试轮数
+    pub max_rounds: u32,
+    /// 轮间最长等待秒数，超过则放弃
+    pub max_wait_seconds: u64,
+}
+
+impl Default for RetryPolicy {
+    fn default() -> Self {
+        Self {
+            max_rounds: 3,
+            max_wait_seconds: 30,
+        }
+    }
+}
+
+impl RetryPolicy {
+    /// 403 属于权限问题，重试无意义，不列入可重试状态
+    pub fn is_retryable_status(status: u16) -> bool {
+        matches!(status, 408 | 429 | 500 | 502 | 503 | 504)
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SelectionStrategy {
+    #[default]
+    RoundRobin,
+    Weighted,
+    FillFirst,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TokenUsage {
+    pub input: u64,
+    pub output: u64,
+    pub cache_read: u64,
+    pub cache_write: u64,
+}
+
+impl TokenUsage {
+    pub fn total(&self) -> u64 {
+        self.input + self.output + self.cache_read + self.cache_write
+    }
+}
+
+/// 以微美元为单位，避免浮点累加误差
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Money {
+    pub micro_usd: i64,
+}
+
+impl Money {
+    pub fn from_micro_usd(micro_usd: i64) -> Self {
+        Self { micro_usd }
+    }
+
+    pub fn zero() -> Self {
+        Self { micro_usd: 0 }
+    }
+
+    pub fn add(&self, other: Self) -> Self {
+        Self {
+            micro_usd: self.micro_usd + other.micro_usd,
+        }
+    }
+}
+
+/// 支持的上游清单
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SupportedUpstreams;
+
+impl SupportedUpstreams {
+    const NAMES: [&'static str; 4] = ["DeepSeek", "OpenAI", "Anthropic", "Gemini"];
+
+    pub fn names() -> &'static [&'static str] {
+        &Self::NAMES
+    }
+
+    pub fn contains(provider: &Provider) -> bool {
+        Self::NAMES.contains(&provider.as_str())
+    }
+}
+
+/// 待授权状态，发起与完成订阅授权两个用例共享
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PendingAuthorization {
+    pub state: String,
+    pub code_verifier: String,
+    pub provider: String,
+    pub expires_at: chrono::DateTime<chrono::Utc>,
+}
+
+impl PendingAuthorization {
+    /// 校验状态标识与有效期，通过后返回自身供消费
+    pub fn consume(
+        self,
+        state: &str,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> Result<Self, AuthorizationError> {
+        if self.state != state {
+            return Err(AuthorizationError::Invalid);
+        }
+        if self.expires_at <= now {
+            return Err(AuthorizationError::Expired);
+        }
+        Ok(self)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AuthorizationError {
+    Expired,
+    Invalid,
+}
+
+impl std::fmt::Display for AuthorizationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Expired => f.write_str("授权已过期"),
+            Self::Invalid => f.write_str("授权状态无效"),
+        }
+    }
+}
+
+impl std::error::Error for AuthorizationError {}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InvalidValue {
+    Blank(&'static str),
+    OutOfRange(&'static str),
+}
+
+impl std::fmt::Display for InvalidValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Blank(field) => write!(f, "{field}不能为空"),
+            Self::OutOfRange(field) => write!(f, "{field}取值非法"),
+        }
+    }
+}
+
+impl std::error::Error for InvalidValue {}

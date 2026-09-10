@@ -2,7 +2,9 @@
 resolver = "3"
 members = [
     "server/shared-kernel",
-    "server/ferry-server",
+    "server/contracts",
+    "server/gateway",
+    "server/app",
 ]
 
 [workspace.package]

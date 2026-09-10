@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ferry.dev/events/gateway/usage_recorded.v1.event.json",
+  "title": "UsageRecorded",
+  "description": "一次模型调用结束后发布，计量与请求日志由此事件沉淀。cost 以微美元为单位，未定价时省略。",
+  "type": "object",
+  "required": ["specversion", "id", "source", "type", "time", "datacontenttype", "data"],
+  "properties": {
+    "specversion": { "const": "1.0" },
+    "id": { "type": "string", "description": "事件标识，全局唯一" },
+    "source": { "type": "string", "description": "事件来源" },
+    "type": { "const": "ferry.gateway.usage.recorded.v1" },
+    "subject": { "type": "string", "description": "承载本次调用的凭证标识" },
+    "time": { "type": "string", "format": "date-time" },
+    "datacontenttype": { "const": "application/json" },
+    "data": {
+      "type": "object",
+      "required": ["credential_id", "alias", "tokens", "succeeded", "latency_ms", "affinity_hit"],
+      "properties": {
+        "credential_id": { "type": "string" },
+        "alias": { "type": "string" },
+        "tokens": {
+          "type": "object",
+          "required": ["input", "output", "cache_read", "cache_write"],
+          "properties": {
+            "input": { "type": "integer", "minimum": 0 },
+            "output": { "type": "integer", "minimum": 0 },
+            "cache_read": { "type": "integer", "minimum": 0 },
+            "cache_write": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "cost": {
+          "type": "object",
+          "description": "折算金额，以微美元为单位。不计价的订阅凭证记为零，未定价时省略该字段。",
+          "required": ["micro_usd"],
+          "properties": {
+            "micro_usd": { "type": "integer" }
+          }
+        },
+        "succeeded": { "type": "boolean" },
+        "latency_ms": { "type": "integer", "minimum": 0 },
+        "affinity_hit": { "type": "boolean" },
+        "failure_reason": {
+          "type": "string",
+          "description": "失败原因，成功记录省略该字段"
+        }
+      }
+    }
+  }
+}

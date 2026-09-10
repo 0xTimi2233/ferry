@@ -1,0 +1,24 @@
+// 转发与调度模块入站契约：为一次请求选定凭证。
+//
+// 本模块的两个用例都没有自研管理端点。发起模型调用的入站承载面是跟随上游规范的协议原生
+// 端点，适配器先把协议报文翻译成领域的统一表示再进入用例，因此其入参与出参由
+// `domain/canonical.rs` 承载；选定凭证是发起模型调用的内部编排能力，也不对外暴露。
+// 本文件只保留选定凭证的数据形状。
+
+syntax = "proto3";
+
+package gateway.v1;
+
+// 选定凭证的入站数据。
+message SelectCredentialRequest {
+  string alias = 1;
+  // 会话标识，缺省表示本次选定不参与会话粘性。
+  optional string session_id = 2;
+}
+
+// 选定凭证的出站数据。
+message SelectCredentialResponse {
+  string credential_id = 1;
+  // 本次选定是否命中会话粘性。
+  bool affinity_hit = 2;
+}
