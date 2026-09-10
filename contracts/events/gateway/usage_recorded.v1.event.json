@@ -46,7 +46,11 @@
         },
         "succeeded": { "type": "boolean" },
         "latency_ms": { "type": "integer", "minimum": 0 },
-        "affinity_hit": { "type": "boolean" }
+        "affinity_hit": { "type": "boolean" },
+        "failure_reason": {
+          "type": "string",
+          "description": "失败原因，成功记录省略该字段"
+        }
       }
     }
   }

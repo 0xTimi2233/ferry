@@ -1,32 +1,13 @@
-// 转发与调度模块入站契约：发起模型调用与为一次请求选定凭证。
+// 转发与调度模块入站契约：为一次请求选定凭证。
 //
-// 两个用例都没有自研管理端点。发起模型调用的入站承载面是跟随上游规范的协议原生端点，选定凭证是它的内部编排能力，
-// 因此本文件只定义入站数据类型与出站数据形状，不定义 service，也不带路由注解。
+// 本模块的两个用例都没有自研管理端点。发起模型调用的入站承载面是跟随上游规范的协议原生
+// 端点，适配器先把协议报文翻译成领域的统一表示再进入用例，因此其入参与出参由
+// `domain/canonical.rs` 承载；选定凭证是发起模型调用的内部编排能力，也不对外暴露。
+// 本文件只保留选定凭证的数据形状。
 
 syntax = "proto3";
 
 package gateway.v1;
-
-import "gateway/v1/common.proto";
-
-// 发起模型调用的入站数据。
-// 会话标识由入站适配器从请求头读取后填入，不随请求体传入。
-message InvokeModelRequest {
-  // 客户端请求的模型名。
-  string alias = 1;
-  // 客户端协议，由命中的协议端点决定。
-  Protocol protocol = 2;
-  bool stream = 3;
-  // 会话标识，缺省表示本次调用不参与会话粘性。
-  optional string session_id = 4;
-  // 客户端协议报文的原始字节，网关不做解析。
-  bytes payload = 5;
-}
-
-// 发起模型调用的出站数据，已转换为客户端协议形态的响应字节。
-message InvokeModelResponse {
-  bytes payload = 1;
-}
 
 // 选定凭证的入站数据。
 message SelectCredentialRequest {

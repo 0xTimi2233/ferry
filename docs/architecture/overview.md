@@ -66,19 +66,47 @@ flowchart TB
 
 ### 入站承载面
 
-入站请求走同一套约定，切片只声明自己的路径与方法。
+入站分为两个面。协议面跟随上游规范，为编码客户端转发模型调用；管理面是本网关自研接口，其路径与形状的单一真源是 `contracts/proto/gateway/v1/`。
+
+协议面的路径固定为四条，入站与出站都经适配器翻译成领域统一表示后才进入用例，本表不再在别处重复：
+
+| 方法 | 路径 | 入站协议 |
+|---|---|---|
+| POST | `/v1/chat/completions` | OpenAI Chat Completions |
+| POST | `/v1/responses` | OpenAI Responses |
+| POST | `/v1/messages` | Anthropic Messages |
+| POST | `/v1beta/models/{model}:generateContent` | Gemini |
+
+管理面的路径不在本文重复，以 proto 的 `google.api.http` 注解为准。
+
+两个面共用的约定：
 
 | 项 | 约定 | 归属 |
 |---|---|---|
 | 鉴权 | 请求头 `Authorization: Bearer <访问密钥>`，校验失败返回 401 | 组装根中间件 |
 | 会话标识 | 请求头 `X-Session-Id`，缺省时按请求体内容哈希派生 | 组装根中间件 |
 | 请求 ID | 请求头 `X-Request-Id`，缺省时由网关生成，响应回传同名头 | 组装根中间件 |
-| 错误结构 | 失败返回 `{ "error": { "code", "message", "upstream" } }` | 组装根中间件，由 `UseCaseError` 分档映射 |
+| 响应结构 | 管理面失败返回 `{ "error": { "code", "message", "upstream" } }`；协议面失败返回协议原生错误结构 | 组装根中间件 |
 | 上游水位 | 上游的 `Retry-After` 与 `x-ratelimit-*` 原样透传 | 组装根中间件 |
+
+### 失败状态码映射
+
+成功态统一返回 200。失败由应用层错误分档映射到状态码，附带头由变体携带的数据决定：
+
+| 用例错误 | HTTP 状态码 | 附带头 |
+|---|---|---|
+| `InvalidInput` | 400 | — |
+| `Unauthorized` | 401 | — |
+| `NotFound` | 404 | — |
+| `ConcurrencyLimited` | 429 | `Retry-After` 为变体给出的秒数 |
+| `AllCredentialsUnavailable` | 503 | `Retry-After` 为 `recover_at` 距当前的秒数，`recover_at` 为空时不带该头 |
+| `Domain` 与其余业务规则拒绝 | 409 | — |
+| `UpstreamFailed` | 502 | 错误体的 `upstream` 为变体携带的上游名 |
+| `Port` | 502 | — |
 
 鉴权校验不是领域行为。ferry 为单用户单密钥，无角色与权限矩阵，因此不划入任何用例；访问密钥的生成、轮换与持久化是领域行为，落在 `manage_settings` 用例。出现多用户、角色、权限矩阵或租户隔离时，才拆分独立的身份上下文。
 
-接口形状与路径的单一真源是 `contracts/proto/gateway/v1/`，`server/contracts/` 以 `protox` 与 `prost-build` 生成 Rust 类型并输出到 `OUT_DIR`。成功态统一返回 200，失败状态码由 `UseCaseError` 分档与 HTTP 的统一映射表决定，两张表都在组装根。
+协议面的四条路径是网关唯一的对外转发入口，运营中如需新增兼容路径，在本文补行后再实现。
 
 ### 运行时关注点
 
@@ -95,4 +123,6 @@ flowchart TB
 
 ## 用例编排
 
-`invoke_model` 在需要选定账号时调用 `select_credential`，两者各自实现、各自验收，前者对后者注入假实现即可自证。
+`invoke_model` 在需要选定账号时调用 `select_credential`，两者各自实现、各自验收，前者对后者注入假实现即可自证。注入点是对该用例处理器的函数指针或轻量 trait，由组装根在装配时给出，切片之间不直接引用。
+
+跨模块协作只有一条通道：发布方把领域事件交给 `EventPublisher` 端口，组装根把订阅方注册到其实现上，订阅方以用例的形式消费事件。已知的跨模块闭环有两条：`invoke_model` 发布用量事件、计量侧消费并落账；`delete_credential` 触发账号组移除、别名侧消费并清理指向该组的目标。

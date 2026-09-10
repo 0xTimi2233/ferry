@@ -5,7 +5,6 @@ syntax = "proto3";
 
 package gateway.v1;
 
-import "google/protobuf/timestamp.proto";
 
 // 上游协议。对应领域值对象的 Protocol。
 enum Protocol {
@@ -31,8 +30,8 @@ message HealthStatus {
   HealthState state = 1;
   // 冷却与失效的原因，其余状态为空。
   string reason = 2;
-  // 冷却恢复时间，仅 COOLING 状态有值。
-  google.protobuf.Timestamp recover_at = 3;
+  // 冷却恢复时间，仅 COOLING 状态有值，取值符合 RFC 3339
+  string recover_at = 3;
 }
 
 // 凭证类型，对应凭证视图的 CredentialKindView。

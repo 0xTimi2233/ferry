@@ -6,7 +6,6 @@ package gateway.v1;
 
 import "gateway/v1/common.proto";
 import "google/api/annotations.proto";
-import "google/protobuf/timestamp.proto";
 
 // 用量分档视图，对应出站查询类型的 UsageBucketView。
 message UsageBucketView {
@@ -19,7 +18,8 @@ message UsageBucketView {
 
 // 请求日志视图，对应出站查询类型的 RequestLogView。
 message RequestLogView {
-  google.protobuf.Timestamp at = 1;
+  // 调用发生时刻，取值符合 RFC 3339
+  string at = 1;
   string alias = 2;
   string credential_name = 3;
   TokenUsage tokens = 4;
