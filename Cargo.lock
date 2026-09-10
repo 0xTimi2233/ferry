@@ -122,6 +122,7 @@ dependencies = [
  "prost-types",
  "protox",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

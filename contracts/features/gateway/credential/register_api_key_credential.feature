@@ -25,7 +25,7 @@ Feature: 注册密钥凭证
     And 不发布领域事件
 
   @wip @credential-register_api_key_credential_blank
-  Scenario: 名称或密钥为空时拒绝注册
+  Scenario: 名称为空时拒绝注册
     Given 不存在名为 "" 的凭证
     When 提交名称 ""、上游 "DeepSeek" 与密钥 "sk-test-0003"
     Then 注册被拒绝且返回名称不能为空

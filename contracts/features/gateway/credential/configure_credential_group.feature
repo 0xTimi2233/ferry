@@ -18,3 +18,10 @@ Feature: 配置账号组
     Given 不存在标识为 "g-missing" 的账号组
     When 提交策略为轮询
     Then 更新被拒绝且返回账号组不存在
+
+  @wip @credential-configure_credential_group_invalid_strategy
+  Scenario: 策略取值非法时拒绝
+    Given 账号组 "g-deepseek" 的策略为轮询
+    When 提交未指明的策略取值
+    Then 更新被拒绝且返回策略取值非法
+    And 账号组 "g-deepseek" 的策略仍为轮询

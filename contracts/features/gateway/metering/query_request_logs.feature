@@ -15,7 +15,7 @@ Feature: 查询请求日志
     And 失败的记录附带失败原因
 
   @wip @metering-query_request_logs_filtered
-  Scenario: 按别名或凭证筛选
+  Scenario: 按别名筛选
     Given 存在涉及两个别名的请求记录
     When 按别名 "deepseek-chat" 筛选
     Then 只返回该别名的记录

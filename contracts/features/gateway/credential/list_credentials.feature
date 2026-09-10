@@ -32,3 +32,9 @@ Feature: 查询凭证列表
     Given 存在两家上游的凭证
     When 按上游 "DeepSeek" 筛选
     Then 只返回该上游的凭证
+
+  @wip @credential-list_credentials_filtered_empty
+  Scenario: 按上游筛选无匹配时返回空列表
+    Given 只存在上游 "OpenAI" 的凭证
+    When 按上游 "DeepSeek" 筛选
+    Then 返回空列表
