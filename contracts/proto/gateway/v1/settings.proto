@@ -1,0 +1,52 @@
+// 设置模块入站契约：访问密钥掩码与服务端参数的查询与更新。
+
+syntax = "proto3";
+
+package gateway.v1;
+
+import "gateway/v1/common.proto";
+import "google/api/annotations.proto";
+
+// 设置视图，对应出站查询类型的 SettingsView。
+message SettingsView {
+  string listen = 1;
+  // 访问密钥掩码，明文只在轮换当次返回。
+  string masked_access_key = 2;
+  Granularity granularity = 3;
+  uint32 retention_days = 4;
+  bool session_affinity = 5;
+}
+
+// 设置模块用例集合。
+// 查询与更新属于同一个用例 `manage_settings`，共用入站消息与响应消息，各占一条路由。
+service SettingsService {
+  // 查询当前设置，入站消息取全部缺省值。
+  rpc GetSettings(ManageSettingsRequest) returns (ManageSettingsResponse) {
+    option (google.api.http) = {
+      get: "/admin/settings"
+    };
+  }
+
+  // 更新设置或重新生成访问密钥。
+  rpc ManageSettings(ManageSettingsRequest) returns (ManageSettingsResponse) {
+    option (google.api.http) = {
+      patch: "/admin/settings"
+      body: "*"
+    };
+  }
+}
+
+message ManageSettingsRequest {
+  // 缺省表示该项不变。
+  optional uint32 retention_days = 1;
+  // 缺省表示该项不变。
+  optional bool session_affinity = 2;
+  // 为 true 时重新生成访问密钥，旧密钥立即失效。
+  bool rotate_access_key = 3;
+}
+
+message ManageSettingsResponse {
+  SettingsView settings = 1;
+  // 轮换时返回的新密钥明文，仅此一次，其余时候为空。
+  string rotated_access_key = 2;
+}

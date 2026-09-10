@@ -2,6 +2,7 @@
 resolver = "3"
 members = [
     "server/shared-kernel",
+    "server/contracts",
     "server/gateway",
     "server/app",
 ]

@@ -1,0 +1,114 @@
+// 网关入站契约跨模块共用的消息与枚举。
+// 本文件是入站请求形状、响应形状与共用值对象的唯一真源，prost 由此生成 Rust 类型供各切片引用。
+
+syntax = "proto3";
+
+package gateway.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// 上游协议。对应领域值对象的 Protocol。
+enum Protocol {
+  PROTOCOL_UNSPECIFIED = 0;
+  PROTOCOL_OPENAI_CHAT = 1;
+  PROTOCOL_OPENAI_RESPONSES = 2;
+  PROTOCOL_ANTHROPIC_MESSAGES = 3;
+  PROTOCOL_GEMINI = 4;
+}
+
+// 凭证健康状态的判别式。对应领域值对象 HealthStatus 的四个变体。
+enum HealthState {
+  HEALTH_STATE_UNSPECIFIED = 0;
+  HEALTH_STATE_READY = 1;
+  HEALTH_STATE_COOLING = 2;
+  HEALTH_STATE_DISABLED = 3;
+  HEALTH_STATE_FAILED = 4;
+}
+
+// 凭证当前是否可用以及不可用的原因。
+// 领域侧是带数据的枚举，此处展开为判别式加伴随字段，reason 与 recover_at 仅在对应状态下有值。
+message HealthStatus {
+  HealthState state = 1;
+  // 冷却与失效的原因，其余状态为空。
+  string reason = 2;
+  // 冷却恢复时间，仅 COOLING 状态有值。
+  google.protobuf.Timestamp recover_at = 3;
+}
+
+// 凭证类型，对应凭证视图的 CredentialKindView。
+enum CredentialKind {
+  CREDENTIAL_KIND_UNSPECIFIED = 0;
+  CREDENTIAL_KIND_API_KEY = 1;
+  CREDENTIAL_KIND_SUBSCRIPTION = 2;
+}
+
+// 账号组内多个凭证的挑选方式。对应领域值对象的 SelectionStrategy。
+enum SelectionStrategy {
+  SELECTION_STRATEGY_UNSPECIFIED = 0;
+  SELECTION_STRATEGY_ROUND_ROBIN = 1;
+  SELECTION_STRATEGY_WEIGHTED = 2;
+  SELECTION_STRATEGY_FILL_FIRST = 3;
+}
+
+// 计量聚合粒度。对应领域值对象的 Granularity。
+enum Granularity {
+  GRANULARITY_UNSPECIFIED = 0;
+  GRANULARITY_DAILY = 1;
+  GRANULARITY_HOURLY = 2;
+}
+
+// 用量汇总的统计指标，对应入站类型的 UsageMetric。
+enum UsageMetric {
+  USAGE_METRIC_UNSPECIFIED = 0;
+  USAGE_METRIC_REQUESTS = 1;
+  USAGE_METRIC_TOKENS = 2;
+  USAGE_METRIC_COST = 3;
+}
+
+// 一次请求消耗的 token，对应领域值对象的 TokenUsage。
+message TokenUsage {
+  uint64 input = 1;
+  uint64 output = 2;
+  uint64 cache_read = 3;
+  uint64 cache_write = 4;
+}
+
+// 折算金额。以微美元为单位，避免浮点累加误差。
+message Money {
+  int64 micro_usd = 1;
+}
+
+// 账号组视图，对应出站查询类型的 CredentialGroupView。
+message CredentialGroupView {
+  // 账号组标识，由上游派生。
+  string id = 1;
+  string provider = 2;
+  SelectionStrategy strategy = 3;
+  uint32 max_concurrency = 4;
+  uint32 credential_count = 5;
+}
+
+// 用例失败的语义分档，对应应用层的 UseCaseError。
+// 分档到 HTTP 状态码的映射由入站适配器负责，不由本契约承载。
+enum ErrorCode {
+  ERROR_CODE_UNSPECIFIED = 0;
+  ERROR_CODE_INVALID_INPUT = 1;
+  ERROR_CODE_UNAUTHORIZED = 2;
+  ERROR_CODE_NOT_FOUND = 3;
+  ERROR_CODE_CONCURRENCY_LIMITED = 4;
+  ERROR_CODE_ALL_CREDENTIALS_UNAVAILABLE = 5;
+  ERROR_CODE_DOMAIN = 6;
+  ERROR_CODE_PORT = 7;
+}
+
+// 统一错误响应，所有失败路径共用此结构。
+message ErrorResponse {
+  Error error = 1;
+}
+
+message Error {
+  ErrorCode code = 1;
+  string message = 2;
+  // 出错侧的上游名称，非上游失败时为空。
+  string upstream = 3;
+}

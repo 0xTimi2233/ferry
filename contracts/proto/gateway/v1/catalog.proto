@@ -1,0 +1,79 @@
+// 模型目录模块入站契约：别名及其别名目标的创建、查询与删除。
+
+syntax = "proto3";
+
+package gateway.v1;
+
+import "gateway/v1/common.proto";
+import "google/api/annotations.proto";
+
+// 别名目标视图，对应出站查询类型的 AliasTargetView。
+message AliasTargetView {
+  string group = 1;
+  string upstream = 2;
+  string upstream_model = 3;
+  Protocol protocol = 4;
+  uint32 weight = 5;
+  uint32 priority = 6;
+}
+
+// 别名视图，对应出站查询类型的 AliasView。
+message AliasView {
+  string name = 1;
+  repeated AliasTargetView targets = 2;
+}
+
+// 模型目录模块用例集合。
+service CatalogService {
+  // 查询别名列表。
+  rpc ListAliases(ListAliasesRequest) returns (ListAliasesResponse) {
+    option (google.api.http) = {
+      get: "/admin/catalog/aliases"
+    };
+  }
+
+  // 创建别名或为已存在的别名追加目标。
+  rpc CreateAlias(CreateAliasRequest) returns (CreateAliasResponse) {
+    option (google.api.http) = {
+      post: "/admin/catalog/aliases"
+      body: "*"
+      additional_bindings {
+        post: "/admin/catalog/aliases/{name}/targets"
+        body: "*"
+      }
+    };
+  }
+
+  // 删除别名。
+  rpc DeleteAlias(DeleteAliasRequest) returns (DeleteAliasResponse) {
+    option (google.api.http) = {
+      delete: "/admin/catalog/aliases/{name}"
+    };
+  }
+}
+
+message ListAliasesRequest {}
+
+message ListAliasesResponse {
+  repeated AliasView aliases = 1;
+}
+
+message CreateAliasRequest {
+  string name = 1;
+  string group_id = 2;
+  string upstream_model = 3;
+  // 缺省表示取领域默认值。
+  optional uint32 weight = 4;
+  // 缺省表示取领域默认值。
+  optional uint32 priority = 5;
+}
+
+message CreateAliasResponse {
+  AliasView alias = 1;
+}
+
+message DeleteAliasRequest {
+  string name = 1;
+}
+
+message DeleteAliasResponse {}
