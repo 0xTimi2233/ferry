@@ -1,9 +1,6 @@
-//! 入站端口
+//! 应用层错误分档
 //!
-//! 入站适配器只负责把协议负载翻译成 Command 或 Query，再由处理器执行；
-//! 处理器签名即入站端口的契约，切片只实现自己的处理器。
-
-use std::future::Future;
+//! 切片把领域错误与出站端口错误映射到本模块的枚举，入站适配器据此产出响应。
 
 use crate::domain::errors::{CatalogError, CredentialError, RelayError, SettingsError};
 use crate::ports::outbound::PortError;
@@ -11,7 +8,7 @@ use crate::ports::outbound::PortError;
 /// 一个用例的处理结果
 pub type UseCaseResult<T> = Result<T, UseCaseError>;
 
-/// 用例失败，按适配器可映射的语义分档
+/// 用例失败，按入站适配器可映射的语义分档
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UseCaseError {
     /// 入站输入不合法
@@ -73,7 +70,8 @@ impl From<CatalogError> for UseCaseError {
     fn from(value: CatalogError) -> Self {
         use CatalogError as E;
         match value {
-            E::NotFound(name) | E::GroupNotFound(name) => Self::NotFound(name),
+            E::NotFound(name) => Self::NotFound(format!("别名 {name}")),
+            E::GroupNotFound(name) => Self::NotFound(format!("账号组 {name}")),
             E::Duplicated(name) => Self::Domain(format!("别名 {name} 已存在")),
             E::Invalid(inner) => Self::InvalidInput(inner.to_string()),
             other => Self::Domain(other.to_string()),
@@ -105,11 +103,4 @@ impl From<SettingsError> for UseCaseError {
             other => Self::Domain(other.to_string()),
         }
     }
-}
-
-/// 入站端口：一个用例一个实现，依赖通过构造注入
-pub trait UseCase<In>: Send + Sync {
-    type Out;
-
-    fn execute(&self, input: In) -> impl Future<Output = UseCaseResult<Self::Out>> + Send;
 }

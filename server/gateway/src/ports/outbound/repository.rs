@@ -83,6 +83,19 @@ pub trait PendingAuthorizationRepository: Send + Sync {
     async fn take(&self, state: &str) -> Result<Option<PendingAuthorization>, PortError>;
 }
 
+/// 一次上游调用的分层超时，四者各自独立，不用单一 deadline
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UpstreamTimeouts {
+    /// 建立连接的上限
+    pub connect_seconds: u64,
+    /// 等待首字节的上限
+    pub first_byte_seconds: u64,
+    /// 两次读取之间的空闲上限
+    pub read_seconds: u64,
+    /// 整次调用的上限
+    pub total_seconds: u64,
+}
+
 /// 一次上游调用的入参，明文密钥只在此处出现
 #[derive(Debug, Clone)]
 pub struct UpstreamCall {
@@ -90,8 +103,7 @@ pub struct UpstreamCall {
     pub secret: Secret,
     pub protocol: crate::domain::values::Protocol,
     pub upstream_model: UpstreamModelId,
-    /// 分层超时：连接、首字节、单次读各自不得超过该秒数
-    pub timeout_seconds: u64,
+    pub timeouts: UpstreamTimeouts,
     pub body: Vec<u8>,
     pub stream: bool,
 }
