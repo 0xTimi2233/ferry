@@ -528,6 +528,7 @@ impl UsageRecord {
             cost: entry.cost,
             succeeded: entry.succeeded,
             latency_ms: entry.latency_ms,
+            failure_reason: entry.failure_reason.clone(),
             affinity_hit: entry.affinity_hit,
         };
         (record, event)

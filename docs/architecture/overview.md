@@ -96,13 +96,18 @@ flowchart TB
 | 用例错误 | HTTP 状态码 | 附带头 |
 |---|---|---|
 | `InvalidInput` | 400 | — |
+| `Translation` | 400 | — |
 | `Unauthorized` | 401 | — |
 | `NotFound` | 404 | — |
-| `ConcurrencyLimited` | 429 | `Retry-After` 为变体给出的秒数 |
-| `AllCredentialsUnavailable` | 503 | `Retry-After` 为 `recover_at` 距当前的秒数，`recover_at` 为空时不带该头 |
 | `Domain` 与其余业务规则拒绝 | 409 | — |
-| `UpstreamFailed` | 502 | 错误体的 `upstream` 为变体携带的上游名 |
-| `Port` | 502 | — |
+| `ConcurrencyLimited` | 429 | `Retry-After` 为变体给出的秒数 |
+| `Internal` | 500 | 存储与加解密失败，与上游无关 |
+| `UpstreamFailed` | 502 | 错误体的 `upstream` 为变体携带的上游名，端口层给不出名称时为空 |
+| `AllCredentialsUnavailable` | 503 | `Retry-After` 为 `recover_at` 距当前的秒数，`recover_at` 为空时不带该头 |
+
+错误体只有两种载体。管理面用 `ErrorResponse`，即 `{ "error": { "code", "message", "upstream" } }`；协议面按各自协议返回原生错误结构，上游名称写在其中的错误信息字段。`ErrorCode` 与分档一一对应。
+
+管理面请求与响应都是 JSON，字段名取 proto3 JSON 的 camelCase，枚举取大写枚举名，时间取 RFC 3339 的 UTC 时刻，均由生成链的 JSON 编解码保证。
 
 鉴权校验不是领域行为。ferry 为单用户单密钥，无角色与权限矩阵，因此不划入任何用例；访问密钥的生成、轮换与持久化是领域行为，落在 `manage_settings` 用例。出现多用户、角色、权限矩阵或租户隔离时，才拆分独立的身份上下文。
 
@@ -126,3 +131,7 @@ flowchart TB
 `invoke_model` 在需要选定账号时调用 `select_credential`，两者各自实现、各自验收，前者对后者注入假实现即可自证。注入点是对该用例处理器的函数指针或轻量 trait，由组装根在装配时给出，切片之间不直接引用。
 
 跨模块协作只有一条通道：发布方把领域事件交给 `EventPublisher` 端口，组装根把订阅方注册到其实现上，订阅方以用例的形式消费事件。已知的跨模块闭环有两条：`invoke_model` 发布用量事件、计量侧消费并落账；`delete_credential` 触发账号组移除、别名侧消费并清理指向该组的目标。
+
+别名指向多个账号组时的选择规则：先取优先级最高的目标集合，再按目标权重在该集合内挑选。目标权重为零表示不参与轮询。该规则由 `Alias` 聚合承载。
+
+切片自有的进程内共享状态，例如按凭证与账号组限制在途并发的信号量，由组装根在装配时构造并注入切片，既不立端口也不进聚合。

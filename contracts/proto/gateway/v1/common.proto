@@ -97,10 +97,13 @@ enum ErrorCode {
   ERROR_CODE_CONCURRENCY_LIMITED = 4;
   ERROR_CODE_ALL_CREDENTIALS_UNAVAILABLE = 5;
   ERROR_CODE_DOMAIN = 6;
-  ERROR_CODE_PORT = 7;
+  ERROR_CODE_UPSTREAM_FAILED = 7;
+  ERROR_CODE_TRANSLATION_FAILED = 8;
+  ERROR_CODE_INTERNAL = 9;
 }
 
-// 统一错误响应，所有失败路径共用此结构。
+// 管理面的统一错误响应。协议面的失败按各自协议的原生错误结构返回，
+// 上游名称写在其中的错误信息字段，不共用本结构。
 message ErrorResponse {
   Error error = 1;
 }

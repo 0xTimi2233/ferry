@@ -11,6 +11,7 @@ pub enum Role {
     System,
     User,
     Assistant,
+    Tool,
 }
 
 /// 消息内容块
@@ -90,6 +91,32 @@ pub struct CanonicalResponse {
     pub message: Message,
     pub finish: FinishReason,
     pub usage: TokenUsage,
+}
+
+/// 一次模型调用的用例入参：路由信封加统一表示
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InvokeCommand {
+    /// 客户端请求的模型名，决定路由到哪个别名
+    pub alias: String,
+    /// 客户端使用的协议，决定响应如何翻译回客户端
+    pub protocol: Protocol,
+    /// 会话标识，缺省表示本次调用不参与会话粘性
+    pub session_id: Option<String>,
+    pub request: CanonicalRequest,
+}
+
+/// 流式响应的单个事件，逐块转发给客户端
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CanonicalEvent {
+    /// 增量内容
+    Delta(ContentBlock),
+    /// 结束，携带结束原因与累计用量
+    Finished {
+        finish: FinishReason,
+        usage: TokenUsage,
+    },
+    /// 流内错误，发完即结束流
+    Failed { reason: String },
 }
 
 /// 统一表示到底层协议或从底层协议翻译失败

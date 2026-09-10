@@ -26,6 +26,8 @@ pub enum DomainEvent {
         cost: Money,
         succeeded: bool,
         latency_ms: u64,
+        /// 失败原因，成功时为 None
+        failure_reason: Option<String>,
         affinity_hit: bool,
     },
 }

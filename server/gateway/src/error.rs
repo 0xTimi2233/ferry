@@ -4,6 +4,7 @@
 //! 每个领域错误与端口错误都必须显式映射，不得用通配臂收尾：新增变体时编译器应当报错，
 //! 而不是静默降级为一个语义更弱的分档。
 
+use crate::domain::canonical::TranslationError;
 use crate::domain::errors::{CatalogError, CredentialError, RelayError, SettingsError};
 use crate::ports::outbound::PortError;
 
@@ -48,10 +49,16 @@ pub enum UseCaseError {
     NotFound { entity: Entity, name: String },
     /// 未授权
     Unauthorized,
-    /// 上游拒绝了本次调用，携带上游名称供对外错误体使用
-    UpstreamFailed { provider: String, status: u16 },
-    /// 出站依赖失败
-    Port(PortError),
+    /// 上游拒绝了本次调用。provider 为空表示端口层给不出上游名称，此时详情在 detail。
+    UpstreamFailed {
+        provider: String,
+        status: Option<u16>,
+        detail: String,
+    },
+    /// 统一表示与客户端协议或上游协议之间无法互译
+    Translation(String),
+    /// 网关自身失效，与上游无关
+    Internal(String),
 }
 
 impl UseCaseError {
@@ -59,6 +66,14 @@ impl UseCaseError {
         Self::NotFound {
             entity,
             name: name.into(),
+        }
+    }
+
+    pub fn upstream_failed(provider: impl Into<String>, status: u16) -> Self {
+        Self::UpstreamFailed {
+            provider: provider.into(),
+            status: Some(status),
+            detail: String::new(),
         }
     }
 }
@@ -74,10 +89,19 @@ impl std::fmt::Display for UseCaseError {
             }
             Self::NotFound { entity, name } => write!(f, "{} {name} 不存在", entity.label()),
             Self::Unauthorized => f.write_str("未授权"),
-            Self::UpstreamFailed { provider, status } => {
-                write!(f, "上游 {provider} 返回 {status}")
+            Self::UpstreamFailed {
+                provider, detail, ..
+            } if provider.is_empty() => {
+                write!(f, "上游调用失败：{detail}")
             }
-            Self::Port(inner) => inner.fmt(f),
+            Self::UpstreamFailed {
+                provider,
+                status: Some(status),
+                ..
+            } => write!(f, "上游 {provider} 返回 {status}"),
+            Self::UpstreamFailed { provider, .. } => write!(f, "上游 {provider} 调用失败"),
+            Self::Translation(reason) => write!(f, "协议转换失败：{reason}"),
+            Self::Internal(reason) => write!(f, "网关内部失败：{reason}"),
         }
     }
 }
@@ -86,13 +110,21 @@ impl std::error::Error for UseCaseError {}
 
 impl From<PortError> for UseCaseError {
     fn from(value: PortError) -> Self {
-        use PortError as E;
-        let carried = match &value {
-            E::Storage(reason) => E::Storage(reason.clone()),
-            E::Upstream(reason) => E::Upstream(reason.clone()),
-            E::Cipher(reason) => E::Cipher(reason.clone()),
-        };
-        Self::Port(carried)
+        match value {
+            PortError::Storage(reason) => Self::Internal(format!("存储失败：{reason}")),
+            PortError::Cipher(reason) => Self::Internal(format!("加解密失败：{reason}")),
+            PortError::Upstream(detail) => Self::UpstreamFailed {
+                provider: String::new(),
+                status: None,
+                detail,
+            },
+        }
+    }
+}
+
+impl From<TranslationError> for UseCaseError {
+    fn from(value: TranslationError) -> Self {
+        Self::Translation(value.to_string())
     }
 }
 
@@ -142,7 +174,7 @@ impl From<RelayError> for UseCaseError {
                 recover_at,
             },
             RelayError::UpstreamFailed { provider, status } => {
-                Self::UpstreamFailed { provider, status }
+                Self::upstream_failed(provider, status)
             }
         }
     }
