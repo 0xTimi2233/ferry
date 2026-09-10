@@ -49,7 +49,7 @@ flowchart TB
     WEB --> METER
 ```
 
-协议适配是唯一接触线上协议的地方，入站协议与出站协议都先翻译成内部统一表示再向外，领域模型不感知任何上游协议的字段。翻译失败分两个方向：上行方向由出站适配器把上游报文翻成统一表示，翻不动时报上游失败；下行方向由面向客户端的适配器把统一表示回译成客户端协议，回译不动时报 `TranslationError::UnsupportedResponseByTarget`，经 `UseCaseError::Translation` 落到客户端，两个方向都不把上游原始报文透传出去。
+协议适配是唯一接触线上协议的地方，入站协议与出站协议都先翻译成内部统一表示再向外，领域模型不感知任何上游协议的字段。翻译失败只表示「我们表达不了」：统一表示送成上游协议时目标协议不支持某项能力，切片在调用上游端口前判定并报 `TranslationError::UnsupportedByTarget`，这次请求不会到达上游；统一表示回译成客户端协议失败，由面向客户端的适配器报 `TranslationError::UnsupportedResponseByTarget`，两者经 `UseCaseError::Translation` 落到客户端。上游报文无法解析成统一表示不算翻译失败，它走上游失败并把上游名带进错误，原始报文不透传给客户端。
 
 ## 技术栈选型
 

@@ -171,10 +171,12 @@ pub struct ExchangedToken {
 }
 
 /// 上游客户端：按上游名选择端点，`invoke` 与 `invoke_stream` 不自行重试，重试由调度层决定。
-/// 协议翻译在适配器内完成，本端口只收发领域的统一表示：
-/// 上行方向即上游线上协议到统一表示，翻不动的响应由本端口的适配器报 `PortError::Upstream`；
-/// 下行方向即统一表示到客户端协议，回译不动的响应不经过本端口，由面向客户端的适配器报
-/// `TranslationError::UnsupportedResponseByTarget`，经 `UseCaseError::Translation` 落到客户端。
+/// 协议翻译在适配器内完成，本端口只收发领域的统一表示。上游报文翻不进统一表示时，适配器只能报
+/// `PortError::Upstream`，也就是上游失败，错误里的上游字段因此有值。
+/// 表达不了的失败不走本端口：统一表示送成上游协议时目标协议不支持某项能力，由切片在调用本端口前
+/// 判定并报 `TranslationError::UnsupportedByTarget`，这次请求不会到达上游；统一表示回译成客户端
+/// 协议失败，由面向客户端的适配器报 `TranslationError::UnsupportedResponseByTarget`，
+/// 两者经 `UseCaseError::Translation` 落到客户端。
 #[async_trait]
 pub trait UpstreamClient: Send + Sync {
     async fn fetch_models(&self, call: UpstreamCall) -> Result<Vec<UpstreamModelId>, PortError>;

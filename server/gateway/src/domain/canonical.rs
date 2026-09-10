@@ -1,7 +1,8 @@
 //! 统一表示
 //!
 //! 基准协议各有各的字段与语义，入站与出站都先翻译成本模块的表达再跨边界，领域因此不感知
-//! 任何上游协议的字段。翻译由适配器完成，翻译不了的部分由适配器报 [`TranslationError`]。
+//! 任何上游协议的字段。翻译由适配器完成，「我们表达不了」的失败归 [`TranslationError`]，
+//! 上游报文读不进来走的是上游失败。
 
 use crate::domain::values::{Protocol, TokenUsage};
 
@@ -122,13 +123,14 @@ pub enum CanonicalEvent {
     Failed { reason: String, usage: TokenUsage },
 }
 
-/// 统一表示与线上协议之间翻译失败。两个方向都归到这里：
-/// 入站与出站适配器把线上报文翻成统一表示失败时报 `UnsupportedByTarget`；
-/// 面向客户端的适配器把统一表示回译成客户端协议失败时报 `UnsupportedResponseByTarget`，
-/// 两者最终都由 `UseCaseError::Translation` 映射到客户端可见的失败。
+/// 统一表示与某一侧协议之间「表达不了」的失败。两个变体都不表示上游报文读不进来：
+/// 统一表示送成上游协议时目标协议不支持某项能力，报 `UnsupportedByTarget`，此时还没向上游发起请求；
+/// 统一表示回译成客户端协议时客户端协议表达不了响应内容，报 `UnsupportedResponseByTarget`。
+/// 上游报文无法解析成统一表示不算翻译失败，它走上游失败的通道，错误里的上游字段因此有值。
+/// 两个变体最终都由 `UseCaseError::Translation` 映射到客户端可见的失败。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TranslationError {
-    /// 目标协议不支持该能力
+    /// 目标协议表达不了统一表示里要送出的能力
     UnsupportedByTarget { feature: String, protocol: Protocol },
     /// 上游响应无法回译为客户端协议
     UnsupportedResponseByTarget { feature: String, protocol: Protocol },
