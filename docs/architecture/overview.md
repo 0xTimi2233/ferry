@@ -114,7 +114,7 @@ flowchart TB
 | Anthropic Messages | `{ "type": "error", "error": { "type", "message", "upstream" } }` |
 | Gemini | `{ "error": { "code", "message", "status", "upstream" } }`，`code` 取 HTTP 状态码 |
 
-上表中的 `code` 取 `ErrorCode` 的枚举名去掉 `ERROR_CODE_` 前缀后的小写形式，`type` 与 `status` 同口径。四个面共用同一组状态码。除本节与 `contracts/proto/gateway/v1/common.proto` 外，其余文档不再重述错误体形状。
+上表中的 `code`、`type` 与 `status` 一律取 `ErrorCode` 的枚举名，即 pbjson 按 proto3 JSON 映射生成的大写形式 `ERROR_CODE_*`。四个面不用各协议原生的类别名，只沿用各自封套的结构、字段名与嵌套层级，并共用上表的状态码。除本节与 `contracts/proto/gateway/v1/common.proto` 外，其余文档不再重述错误体形状。
 
 上游失败时，知道上游名称的切片直接构造 `UseCaseError::UpstreamFailed` 或调用 `upstream_failed`，不要依赖 `From<PortError>` 的降级结果；只有出站端口层报错、切片也无从得知名称时，`upstream` 才省略。连接失败与流式空闲超时没有状态码，直接构造变体并把 `status` 留空。
 

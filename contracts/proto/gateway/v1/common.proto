@@ -1,5 +1,6 @@
 // 网关入站契约跨模块共用的消息与枚举。
-// 本文件是入站请求形状、响应形状与共用值对象的唯一真源，prost 由此生成 Rust 类型供各切片引用。
+// 管理面的入站请求形状、响应形状与跨模块共用值对象的单一真源，prost 由此生成 Rust 类型供各切片引用。
+// 协议面的入参出参由 domain/canonical.rs 承载，见 ADR 0001；错误体形状见 docs/architecture/overview.md。
 
 syntax = "proto3";
 
