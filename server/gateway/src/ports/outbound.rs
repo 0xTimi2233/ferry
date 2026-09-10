@@ -2,9 +2,11 @@
 //!
 //! 写侧经聚合根，读侧直接取投影，两侧接口分开。
 
+pub mod events;
 pub mod query;
 pub mod repository;
 
+pub use events::*;
 pub use query::*;
 pub use repository::*;
 

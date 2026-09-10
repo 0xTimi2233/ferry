@@ -24,7 +24,8 @@ pub struct CredentialFilter {
 #[derive(Debug, Clone, Default)]
 pub struct RequestLogFilter {
     pub alias: Option<String>,
-    pub credential: Option<String>,
+    /// 按凭证名称筛选，与视图字段 `credential_name` 同义
+    pub credential_name: Option<String>,
     pub only_failed: bool,
 }
 
