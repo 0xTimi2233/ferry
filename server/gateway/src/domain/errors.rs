@@ -49,7 +49,6 @@ pub enum CatalogError {
     Duplicated(String),
     NotFound(String),
     GroupNotFound(String),
-    CredentialUnavailable(String),
     Invalid(InvalidValue),
 }
 
@@ -59,7 +58,6 @@ impl std::fmt::Display for CatalogError {
             Self::Duplicated(name) => write!(f, "别名 {name} 已存在"),
             Self::NotFound(name) => write!(f, "别名 {name} 不存在"),
             Self::GroupNotFound(id) => write!(f, "账号组 {id} 不存在"),
-            Self::CredentialUnavailable(name) => write!(f, "凭证 {name} 不可用"),
             Self::Invalid(inner) => inner.fmt(f),
         }
     }

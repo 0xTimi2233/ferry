@@ -248,7 +248,25 @@ fn should_reject_duplicated_credential_name() -> TestResult {
 }
 
 #[test]
-fn should_reject_offered_models_that_empty_kept_set() -> TestResult {
+fn should_tune_credential_weight_and_priority() -> TestResult {
+    let mut credential = api_key("deepseek-main")?;
+
+    assert_eq!(credential.weight().value(), 1);
+    assert_eq!(credential.priority().value(), 1);
+
+    credential.tune(Weight::new(3), Priority::new(2)?);
+
+    assert_eq!(credential.weight().value(), 3);
+    assert_eq!(credential.priority().value(), 2);
+
+    credential.tune(Weight::new(0), Priority::default());
+
+    assert!(!credential.weight().is_participating());
+    Ok(())
+}
+
+#[test]
+fn should_keep_models_when_record_offered_models_rejected() -> TestResult {
     let mut credential = api_key("deepseek-main")?;
     credential.record_offered_models(vec![model("deepseek-chat")?])?;
     credential.update_kept_models(vec![model("deepseek-chat")?])?;
@@ -257,6 +275,7 @@ fn should_reject_offered_models_that_empty_kept_set() -> TestResult {
 
     assert_eq!(result, Err(CredentialError::EmptySelection));
     assert_eq!(credential.kept_models(), &[model("deepseek-chat")?]);
+    assert_eq!(credential.offered_models(), &[model("deepseek-chat")?]);
     Ok(())
 }
 

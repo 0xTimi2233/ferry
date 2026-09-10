@@ -22,14 +22,14 @@ pub trait CredentialRepository: Send + Sync {
     async fn delete(&self, id: &CredentialId) -> Result<(), PortError>;
 }
 
-/// 别名仓储：按名称查别名，`count_targets_to` 供账号组移除前判断引用
+/// 别名仓储：按名称查别名，`count_targets_to` 供别名侧在账号组被移除后清理
 #[async_trait]
 pub trait AliasRepository: Send + Sync {
     async fn find(&self, name: &AliasName) -> Result<Option<Alias>, PortError>;
     async fn list_all(&self) -> Result<Vec<Alias>, PortError>;
     async fn save(&self, alias: &Alias) -> Result<(), PortError>;
     async fn delete(&self, name: &AliasName) -> Result<(), PortError>;
-    /// 统计指向该账号组的别名目标数量，供别名侧在账号组被移除后清理
+    /// 供别名侧在账号组被移除后清理
     async fn count_targets_to(&self, group: &GroupId) -> Result<u64, PortError>;
 }
 
@@ -89,7 +89,9 @@ pub trait PendingAuthorizationRepository: Send + Sync {
 /// 账号组的轮询位置，由外部存储持有，保证重启与并发下轮换不丢位
 #[async_trait]
 pub trait SelectionCursorRepository: Send + Sync {
-    /// 原子推进指定账号组的轮询位置并返回本次应使用的下标，下标必小于 `len`
+    /// 原子推进指定账号组的轮询位置并返回本次应使用的下标，下标必小于 `len`。
+    /// `len` 是候选集合的长度，冷却中的凭证不进入候选集合，因而不占轮询位置。
+    /// 同一账号组的并发调用由端口实现串行化，各次调用拿到的下标互不相同。
     async fn advance(&self, group: &GroupId, len: usize) -> Result<usize, PortError>;
 }
 

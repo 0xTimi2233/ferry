@@ -127,13 +127,18 @@ pub enum CanonicalEvent {
 pub enum TranslationError {
     /// 目标协议不支持该能力
     UnsupportedByTarget { feature: String, protocol: Protocol },
+    /// 上游响应无法回译为客户端协议
+    UnsupportedResponseByTarget { feature: String, protocol: Protocol },
 }
 
 impl std::fmt::Display for TranslationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::UnsupportedByTarget { feature, protocol } => {
-                write!(f, "目标协议 {protocol:?} 不支持{feature}")
+                write!(f, "目标协议 {} 不支持{feature}", protocol.label())
+            }
+            Self::UnsupportedResponseByTarget { feature, protocol } => {
+                write!(f, "上游响应无法回译为{}：{feature}", protocol.label())
             }
         }
     }

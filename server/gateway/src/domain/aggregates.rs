@@ -193,7 +193,8 @@ impl Credential {
         }
     }
 
-    /// 上游清单变化时，已保留但不再提供的模型被剔除；清空则拒绝并保持原集合
+    /// 上游清单变化时，已保留但不再提供的模型被剔除；
+    /// 若收窄导致已保留模型全部失效则拒绝，此时该次调用不改动任何状态，清单保持旧值
     pub fn record_offered_models(
         &mut self,
         models: Vec<UpstreamModelId>,
@@ -242,6 +243,12 @@ impl Credential {
             return Err(CredentialError::Duplicated(self.name.clone()));
         }
         Ok(())
+    }
+
+    /// 设置组内挑选用的权重与优先级，缺省值由领域给出
+    pub fn tune(&mut self, weight: Weight, priority: Priority) {
+        self.weight = weight;
+        self.priority = priority;
     }
 
     pub fn disable(&mut self) -> DomainEvent {

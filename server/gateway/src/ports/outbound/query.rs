@@ -8,7 +8,7 @@ use chrono::{DateTime, Utc};
 
 use contracts::gateway::v1::{
     AliasView, CredentialGroupView, CredentialView, Granularity, Money, RequestLogView,
-    SettingsView, UsageBucketView,
+    SettingsView, UsageBucketView, UsageMetric,
 };
 
 use super::PortError;
@@ -54,7 +54,7 @@ pub trait CredentialGroupQuery: Send + Sync {
     async fn list(&self) -> Result<Vec<CredentialGroupView>, PortError>;
 }
 
-/// 用量读模型：按时间粒度聚合，或按凭证聚合折算金额
+/// 用量读模型：按时间粒度与统计指标聚合，或按凭证聚合折算金额
 #[async_trait]
 pub trait UsageQuery: Send + Sync {
     async fn buckets(
@@ -62,6 +62,7 @@ pub trait UsageQuery: Send + Sync {
         from: DateTime<Utc>,
         to: DateTime<Utc>,
         granularity: Granularity,
+        metric: UsageMetric,
     ) -> Result<Vec<UsageBucketView>, PortError>;
 
     async fn cost_by_credential(

@@ -69,6 +69,18 @@ pub enum Protocol {
     Gemini,
 }
 
+impl Protocol {
+    /// 对外文案用的协议名，与入站承载面的四条路径同名
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::OpenAiChat => "OpenAI Chat Completions",
+            Self::OpenAiResponses => "OpenAI Responses",
+            Self::AnthropicMessages => "Anthropic Messages",
+            Self::Gemini => "Gemini",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct UpstreamModelId(String);
 

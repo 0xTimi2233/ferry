@@ -15,8 +15,8 @@ pub use repository::*;
 pub enum PortError {
     /// 存储不可用
     Storage(String),
-    /// 上游请求失败
-    Upstream(String),
+    /// 上游请求失败，带上已拿到的响应状态码
+    Upstream { status: u16, detail: String },
     /// 加解密失败
     Cipher(String),
 }
@@ -25,7 +25,7 @@ impl std::fmt::Display for PortError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Storage(reason) => write!(f, "存储失败：{reason}"),
-            Self::Upstream(reason) => write!(f, "上游失败：{reason}"),
+            Self::Upstream { status, detail } => write!(f, "上游返回 {status}：{detail}"),
             Self::Cipher(reason) => write!(f, "加解密失败：{reason}"),
         }
     }
