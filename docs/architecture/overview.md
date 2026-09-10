@@ -112,7 +112,7 @@ flowchart TB
 | 管理面 | `{ "error": { "code", "message", "upstream" } }` |
 | OpenAI Chat Completions 与 Responses | `{ "error": { "type", "message", "upstream" } }` |
 | Anthropic Messages | `{ "type": "error", "error": { "type", "message", "upstream" } }` |
-| Gemini | `{ "error": { "code", "message", "status", "upstream" } }`，`code` 取 HTTP 状态码 |
+| Gemini | `{ "error": { "code", "message", "status", "upstream" } }` |
 
 上表中的 `code`、`type` 与 `status` 一律取 `ErrorCode` 的枚举名，即 pbjson 按 proto3 JSON 映射生成的大写形式 `ERROR_CODE_*`。四个面不用各协议原生的类别名，只沿用各自封套的结构、字段名与嵌套层级，并共用上表的状态码。除本节与 `contracts/proto/gateway/v1/common.proto` 外，其余文档不再重述错误体形状。
 
