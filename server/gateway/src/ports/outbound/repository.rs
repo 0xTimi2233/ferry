@@ -27,6 +27,7 @@ pub trait AliasRepository: Send + Sync {
     async fn list_all(&self) -> Result<Vec<Alias>, PortError>;
     async fn save(&self, alias: &Alias) -> Result<(), PortError>;
     async fn delete(&self, name: &AliasName) -> Result<(), PortError>;
+    /// 统计指向该账号组的别名目标数量，供别名侧在账号组被移除后清理
     async fn count_targets_to(&self, group: &GroupId) -> Result<u64, PortError>;
 }
 
@@ -81,6 +82,13 @@ pub trait PendingAuthorizationRepository: Send + Sync {
     async fn save(&self, pending: &PendingAuthorization) -> Result<(), PortError>;
     /// 取出并消费，同一状态标识只能成功一次
     async fn take(&self, state: &str) -> Result<Option<PendingAuthorization>, PortError>;
+}
+
+/// 账号组的轮询位置，由外部存储持有，保证重启与并发下轮换不丢位
+#[async_trait]
+pub trait SelectionCursorRepository: Send + Sync {
+    /// 原子推进指定账号组的轮询位置并返回本次应使用的下标，下标必小于 `len`
+    async fn advance(&self, group: &GroupId, len: usize) -> Result<usize, PortError>;
 }
 
 /// 一次上游调用的分层超时，四者各自独立，不用单一 deadline
