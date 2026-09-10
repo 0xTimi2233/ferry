@@ -29,11 +29,11 @@ pub struct RequestLogFilter {
     pub only_failed: bool,
 }
 
-/// 按凭证聚合的折算金额，由外部存储直接给出
+/// 按凭证聚合的折算金额，未定价的凭证金额为空
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CredentialCostView {
     pub credential_id: CredentialId,
-    pub cost: Money,
+    pub cost: Option<Money>,
 }
 
 /// 凭证读模型：列表按上游筛选，详情按标识取单条，密钥只以掩码返回
@@ -57,6 +57,7 @@ pub trait CredentialGroupQuery: Send + Sync {
 /// 用量读模型：按时间粒度与统计指标聚合，或按凭证聚合折算金额
 #[async_trait]
 pub trait UsageQuery: Send + Sync {
+    /// 分档金额是各条记录的合计：不计价记录记零，该档存在未定价记录时金额缺省
     async fn buckets(
         &self,
         from: DateTime<Utc>,

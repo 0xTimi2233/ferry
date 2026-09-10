@@ -30,3 +30,10 @@ Feature: 查询用量汇总
     Given 存在一条来自订阅凭证的用量记录
     When 查询用量汇总
     Then 该记录的金额计为零，token 用量正常计入
+
+  @wip @metering-query_usage_summary_unpriced
+  Scenario: 未定价的记录不计入金额合计
+    Given 存在一条来自未定价密钥凭证的用量记录
+    When 查询用量汇总
+    Then 该档的折算金额缺省，表示合计不完整
+    And token 用量正常计入

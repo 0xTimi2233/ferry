@@ -14,6 +14,8 @@ message UsageBucketView {
   string day = 1;
   uint64 requests = 2;
   TokenUsage tokens = 3;
+  // 折算金额，为该档各条记录的合计：不计价记录记零，该档存在未定价记录时本字段缺省，
+  // 表示合计不完整。价格来源见 docs/architecture/overview.md 的计量口径。
   Money cost = 4;
 }
 

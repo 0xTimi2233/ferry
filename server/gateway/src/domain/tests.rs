@@ -6,6 +6,7 @@ use chrono::{Duration, Utc};
 
 use crate::domain::aggregates::*;
 use crate::domain::errors::*;
+use crate::domain::events::DomainEvent;
 use crate::domain::values::*;
 
 /// 测试用返回类型，任意领域错误都能被 `?` 传播
@@ -546,9 +547,9 @@ fn should_accept_reference_to_existing_group() -> TestResult {
     Ok(())
 }
 
-#[test]
-fn should_publish_usage_event_when_recorded() -> TestResult {
-    let (record, event) = UsageRecord::record(UsageEntry {
+/// 一次记账入参，金额由调用方按价格来源给出
+fn usage_entry(cost: Option<Money>) -> Result<UsageEntry, InvalidValue> {
+    Ok(UsageEntry {
         request_id: "req_1".to_string(),
         credential_id: CredentialId::new("c1"),
         alias: alias_name("deepseek-chat")?,
@@ -557,18 +558,61 @@ fn should_publish_usage_event_when_recorded() -> TestResult {
             output: 20,
             ..TokenUsage::default()
         },
-        cost: Money::from_micro_usd(1_500),
+        cost,
         succeeded: true,
         latency_ms: 900,
         failure_reason: None,
         affinity_hit: true,
         at: Utc::now(),
-    });
+    })
+}
+
+#[test]
+fn should_publish_usage_event_when_recorded() -> TestResult {
+    let credential = api_key("deepseek-main")?;
+    let priced = Money::from_micro_usd(1_500);
+
+    let (record, event) = UsageRecord::record(usage_entry(Some(priced))?, credential.kind());
 
     assert_eq!(record.tokens().total(), 120);
     assert_eq!(record.latency_ms(), 900);
     assert!(record.affinity_hit());
+    assert_eq!(record.cost(), Some(priced));
     assert_eq!(event.name(), "UsageRecorded");
+    Ok(())
+}
+
+#[test]
+fn should_charge_zero_for_subscription_credential() -> TestResult {
+    let credential = subscription(4)?;
+
+    let (record, event) = UsageRecord::record(
+        usage_entry(Some(Money::from_micro_usd(1_500)))?,
+        credential.kind(),
+    );
+
+    assert_eq!(record.cost(), Some(Money::zero()));
+    assert!(matches!(
+        event,
+        DomainEvent::UsageRecorded {
+            cost: Some(cost),
+            ..
+        } if cost == Money::zero()
+    ));
+    Ok(())
+}
+
+#[test]
+fn should_leave_cost_empty_when_not_priced() -> TestResult {
+    let credential = api_key("deepseek-main")?;
+
+    let (record, event) = UsageRecord::record(usage_entry(None)?, credential.kind());
+
+    assert_eq!(record.cost(), None);
+    assert!(matches!(
+        event,
+        DomainEvent::UsageRecorded { cost: None, .. }
+    ));
     Ok(())
 }
 

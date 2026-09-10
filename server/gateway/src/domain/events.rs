@@ -23,7 +23,8 @@ pub enum DomainEvent {
         credential_id: CredentialId,
         alias: String,
         tokens: TokenUsage,
-        cost: Money,
+        /// 未定价时为空，不计价凭证记零
+        cost: Option<Money>,
         succeeded: bool,
         latency_ms: u64,
         /// 失败原因，成功时为 None

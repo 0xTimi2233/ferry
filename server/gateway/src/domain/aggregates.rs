@@ -32,6 +32,16 @@ impl CredentialKind {
     pub fn charges_cost(&self) -> bool {
         matches!(self, Self::ApiKey { .. })
     }
+
+    /// 一次调用的金额结论。不计价的凭证恒为零，计价凭证取调用方按价格来源折算出的结果，
+    /// 未取得价格时为空，不用零冒充。落账侧唯一的取值入口就是这里，调用方无从自行填空。
+    pub fn charge(&self, priced: Option<Money>) -> Option<Money> {
+        if self.charges_cost() {
+            priced
+        } else {
+            Some(Money::zero())
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -547,7 +557,7 @@ pub struct UsageRecord {
     credential_id: CredentialId,
     alias: AliasName,
     tokens: TokenUsage,
-    cost: Money,
+    cost: Option<Money>,
     succeeded: bool,
     latency_ms: u64,
     failure_reason: Option<String>,
@@ -562,7 +572,9 @@ pub struct UsageEntry {
     pub credential_id: CredentialId,
     pub alias: AliasName,
     pub tokens: TokenUsage,
-    pub cost: Money,
+    /// 调用方按价格来源折算出的金额，价格来源缺失时为空。
+    /// 不计价凭证的零不由此字段给出，由 `UsageRecord::record` 按凭证类型定音。
+    pub cost: Option<Money>,
     pub succeeded: bool,
     pub latency_ms: u64,
     pub failure_reason: Option<String>,
@@ -571,13 +583,15 @@ pub struct UsageEntry {
 }
 
 impl UsageRecord {
-    pub fn record(entry: UsageEntry) -> (Self, DomainEvent) {
+    /// 落账时金额由凭证类型定音：不计价的凭证记零，计价凭证取入参里的折算结果，未定价则为空。
+    pub fn record(entry: UsageEntry, kind: &CredentialKind) -> (Self, DomainEvent) {
+        let cost = kind.charge(entry.cost);
         let record = Self {
             request_id: entry.request_id,
             credential_id: entry.credential_id.clone(),
             alias: entry.alias.clone(),
             tokens: entry.tokens,
-            cost: entry.cost,
+            cost,
             succeeded: entry.succeeded,
             latency_ms: entry.latency_ms,
             failure_reason: entry.failure_reason.clone(),
@@ -588,7 +602,7 @@ impl UsageRecord {
             credential_id: entry.credential_id,
             alias: entry.alias.as_str().to_string(),
             tokens: entry.tokens,
-            cost: entry.cost,
+            cost,
             succeeded: entry.succeeded,
             latency_ms: entry.latency_ms,
             failure_reason: entry.failure_reason.clone(),
@@ -625,7 +639,7 @@ impl UsageRecord {
         self.tokens
     }
 
-    pub fn cost(&self) -> Money {
+    pub fn cost(&self) -> Option<Money> {
         self.cost
     }
 
