@@ -72,3 +72,11 @@ Feature: 发起模型调用
     When 客户端要求流式响应且上游在流中途断开
     Then 网关向客户端发送流内错误事件并结束流
     And 用量记录标记为失败且保留已发生的 token 用量
+
+  @wip @relay-invoke_model_back_translation_failed
+  Scenario: 上游响应无法回译为客户端协议时失败
+    Given 别名 "deepseek-chat" 存在可用凭证
+    And 上游返回的响应携带客户端协议无法表达的内容
+    When 客户端请求该别名
+    Then 请求失败且返回协议转换失败
+    And 用量记录标记为失败

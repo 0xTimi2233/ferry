@@ -152,7 +152,7 @@ pub struct UpstreamResponse {
 pub enum UpstreamChunk {
     /// 响应头。流式调用的首个事件必为它，切片据此在提交响应头前处理终局拒绝
     Head(UpstreamHead),
-    /// 已翻译成统一表示的增量事件，切片只做转发
+    /// 已翻译成统一表示的增量事件，切片只做转发；回译成客户端协议由面向客户端的适配器完成
     Event(crate::domain::canonical::CanonicalEvent),
     /// 上游正常结束
     End,
@@ -171,7 +171,10 @@ pub struct ExchangedToken {
 }
 
 /// 上游客户端：按上游名选择端点，`invoke` 与 `invoke_stream` 不自行重试，重试由调度层决定。
-/// 协议翻译在适配器内完成，本端口只收发领域的统一表示。
+/// 协议翻译在适配器内完成，本端口只收发领域的统一表示：
+/// 上行方向即上游线上协议到统一表示，翻不动的响应由本端口的适配器报 `PortError::Upstream`；
+/// 下行方向即统一表示到客户端协议，回译不动的响应不经过本端口，由面向客户端的适配器报
+/// `TranslationError::UnsupportedResponseByTarget`，经 `UseCaseError::Translation` 落到客户端。
 #[async_trait]
 pub trait UpstreamClient: Send + Sync {
     async fn fetch_models(&self, call: UpstreamCall) -> Result<Vec<UpstreamModelId>, PortError>;

@@ -122,7 +122,10 @@ pub enum CanonicalEvent {
     Failed { reason: String, usage: TokenUsage },
 }
 
-/// 统一表示到底层协议或从底层协议翻译失败
+/// 统一表示与线上协议之间翻译失败。两个方向都归到这里：
+/// 入站与出站适配器把线上报文翻成统一表示失败时报 `UnsupportedByTarget`；
+/// 面向客户端的适配器把统一表示回译成客户端协议失败时报 `UnsupportedResponseByTarget`，
+/// 两者最终都由 `UseCaseError::Translation` 映射到客户端可见的失败。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TranslationError {
     /// 目标协议不支持该能力
