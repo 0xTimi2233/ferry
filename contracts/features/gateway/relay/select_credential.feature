@@ -79,6 +79,14 @@ Feature: 选定凭证
     Then 选定被拒绝且错误信息包含尝试过的凭证名称清单
     And 错误信息里的恢复时间取其中最晚的 T2
 
+  @wip @relay-select_credential_group_scope
+  Scenario: 只在本组凭证里挑选
+    Given 别名 "deepseek-chat" 指向账号组 "g-deepseek"
+    And 凭证 "deepseek-main" 属于 "g-deepseek"，凭证 "chatgpt-plus" 属于 "g-openai"
+    When 为一次请求选定凭证
+    Then 选定落在 "deepseek-main" 上
+    And 不返回其它账号组的凭证
+
   @wip @relay-select_credential_group_weight
   Scenario: 加权策略下按凭证权重挑选
     Given 账号组 "g-deepseek" 的策略为加权

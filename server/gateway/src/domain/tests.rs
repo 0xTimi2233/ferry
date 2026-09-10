@@ -397,13 +397,14 @@ fn should_group_credentials_by_provider_with_default_strategy() -> TestResult {
 fn should_select_group_credential_by_round_robin_position() -> TestResult {
     let group = CredentialGroup::for_provider(provider("DeepSeek")?);
     let credentials = vec![api_key("deepseek-main")?, api_key("deepseek-backup")?];
+    let candidates = group.candidates(&credentials);
 
-    assert_eq!(group.candidates(&credentials).len(), 2);
+    assert_eq!(candidates.len(), 2);
 
-    let picked = group.select(&credentials, 1, 0.0).ok_or("应有可选凭证")?;
+    let picked = group.select(&candidates, 1, 0.0).ok_or("应有可选凭证")?;
     assert_eq!(picked.name(), "deepseek-backup");
 
-    let wrapped = group.select(&credentials, 3, 0.0).ok_or("应有可选凭证")?;
+    let wrapped = group.select(&candidates, 3, 0.0).ok_or("应有可选凭证")?;
     assert_eq!(wrapped.name(), "deepseek-backup");
     Ok(())
 }
@@ -415,12 +416,26 @@ fn should_skip_unavailable_credentials_when_selecting() -> TestResult {
         cooling_api_key("deepseek-main")?,
         api_key("deepseek-backup")?,
     ];
+    let candidates = group.candidates(&credentials);
 
-    assert_eq!(group.candidates(&credentials).len(), 1);
+    assert_eq!(candidates.len(), 1);
 
-    let picked = group.select(&credentials, 0, 0.0).ok_or("应有可选凭证")?;
+    let picked = group.select(&candidates, 0, 0.0).ok_or("应有可选凭证")?;
     assert_eq!(picked.name(), "deepseek-backup");
-    assert!(group.select(&[], 0, 0.0).is_none());
+    assert!(group.select(&group.candidates(&[]), 0, 0.0).is_none());
+    Ok(())
+}
+
+#[test]
+fn should_exclude_credentials_of_other_groups_when_selecting() -> TestResult {
+    let group = CredentialGroup::for_provider(provider("DeepSeek")?);
+    let credentials = vec![subscription(4)?, api_key("deepseek-main")?];
+    let candidates = group.candidates(&credentials);
+
+    assert_eq!(candidates.len(), 1);
+
+    let picked = group.select(&candidates, 0, 0.0).ok_or("应有可选凭证")?;
+    assert_eq!(picked.name(), "deepseek-main");
     Ok(())
 }
 
@@ -432,10 +447,11 @@ fn should_select_group_credential_by_weight() -> TestResult {
         tuned_api_key("deepseek-main", 1, 1)?,
         tuned_api_key("deepseek-backup", 3, 1)?,
     ];
+    let candidates = group.candidates(&credentials);
 
-    let light = group.select(&credentials, 0, 0.1).ok_or("应有可选凭证")?;
-    let boundary = group.select(&credentials, 0, 0.25).ok_or("应有可选凭证")?;
-    let heavy = group.select(&credentials, 0, 0.9).ok_or("应有可选凭证")?;
+    let light = group.select(&candidates, 0, 0.1).ok_or("应有可选凭证")?;
+    let boundary = group.select(&candidates, 0, 0.25).ok_or("应有可选凭证")?;
+    let heavy = group.select(&candidates, 0, 0.9).ok_or("应有可选凭证")?;
 
     assert_eq!(light.name(), "deepseek-main");
     assert_eq!(boundary.name(), "deepseek-backup");
@@ -449,7 +465,11 @@ fn should_report_no_candidate_when_every_weight_is_zero() -> TestResult {
     group.set_strategy(SelectionStrategy::Weighted);
     let credentials = vec![tuned_api_key("deepseek-main", 0, 1)?];
 
-    assert!(group.select(&credentials, 0, 0.5).is_none());
+    assert!(
+        group
+            .select(&group.candidates(&credentials), 0, 0.5)
+            .is_none()
+    );
     Ok(())
 }
 
@@ -461,9 +481,10 @@ fn should_select_lowest_priority_credential_when_fill_first() -> TestResult {
         tuned_api_key("deepseek-main", 1, 2)?,
         tuned_api_key("deepseek-backup", 1, 1)?,
     ];
+    let candidates = group.candidates(&credentials);
 
-    let picked = group.select(&credentials, 0, 0.0).ok_or("应有可选凭证")?;
-    let again = group.select(&credentials, 1, 0.0).ok_or("应有可选凭证")?;
+    let picked = group.select(&candidates, 0, 0.0).ok_or("应有可选凭证")?;
+    let again = group.select(&candidates, 1, 0.0).ok_or("应有可选凭证")?;
 
     assert_eq!(picked.name(), "deepseek-backup");
     assert_eq!(again.name(), picked.name());

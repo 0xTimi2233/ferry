@@ -12,12 +12,14 @@ use crate::domain::values::{
 
 use super::PortError;
 
-/// 凭证仓储：按标识与名称查凭证，保存为整体替换
+/// 凭证仓储：按标识与名称查单条，按账号组取整组，保存为整体替换
 #[async_trait]
 pub trait CredentialRepository: Send + Sync {
     async fn find(&self, id: &CredentialId) -> Result<Option<Credential>, PortError>;
     async fn find_by_name(&self, name: &str) -> Result<Option<Credential>, PortError>;
     async fn list_all(&self) -> Result<Vec<Credential>, PortError>;
+    /// 按账号组取凭证，组内挑选的候选集合由它给出，切片不需要自己筛组
+    async fn list_by_group(&self, group: &GroupId) -> Result<Vec<Credential>, PortError>;
     async fn save(&self, credential: &Credential) -> Result<(), PortError>;
     async fn delete(&self, id: &CredentialId) -> Result<(), PortError>;
 }

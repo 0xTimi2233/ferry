@@ -408,6 +408,29 @@ impl AliasTarget {
     }
 }
 
+/// 账号组当下可参与挑选的凭证，只能由 [`CredentialGroup::candidates`] 得出。
+/// 它一定是本组凭证且已排除冷却中与不可用的，挑选与推进轮询位置看的是同一个集合。
+#[derive(Debug)]
+pub struct GroupCandidates<'a>(Vec<&'a Credential>);
+
+impl<'a> GroupCandidates<'a> {
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    fn get(&self, index: usize) -> Option<&'a Credential> {
+        self.0.get(index).copied()
+    }
+
+    fn iter(&self) -> impl Iterator<Item = &'a Credential> + '_ {
+        self.0.iter().copied()
+    }
+}
+
 /// 同一上游的一组凭证，是调度的单位
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CredentialGroup {
@@ -452,11 +475,18 @@ impl CredentialGroup {
         self.strategy = strategy;
     }
 
-    /// 本组当下可参与挑选的凭证：冷却中与不可用的一律不在其中。
-    /// 传给 `SelectionCursorRepository::advance` 的长度取本清单的长度，两者必须同源，
-    /// 否则轮询位置会与候选集合错位。
-    pub fn candidates<'a>(&self, credentials: &'a [Credential]) -> Vec<&'a Credential> {
-        credentials.iter().filter(|c| c.is_available()).collect()
+    /// 本组当下可参与挑选的凭证：只取属于本组的，冷却中与不可用的一律不在其中。
+    /// 取数走 `CredentialRepository::list_by_group`，过滤由本方法负责，
+    /// 结果只能回传给 [`CredentialGroup::select`]，组外凭证进不去候选集合。
+    /// 传给 `SelectionCursorRepository::advance` 的长度取本清单的长度，两者是同一个集合，
+    /// 轮询位置因此不会与候选集合错位。
+    pub fn candidates<'a>(&self, credentials: &'a [Credential]) -> GroupCandidates<'a> {
+        GroupCandidates(
+            credentials
+                .iter()
+                .filter(|c| c.group() == &self.id && c.is_available())
+                .collect(),
+        )
     }
 
     /// 按本组策略挑选一次调用要用的凭证，无候选时返回空。
@@ -466,27 +496,25 @@ impl CredentialGroup {
     /// 填满优先取优先级数值最小者，同优先级时取候选集合中靠前者。
     /// 冷却中与不可用的凭证一律跳过，因此也不占轮询位置。
     ///
+    /// `candidates` 只能是 [`CredentialGroup::candidates`] 的产物，本方法不接受任意凭证切片，
+    /// 组外凭证与不可用凭证因此到不了这里。
     /// `position` 由 `SelectionCursorRepository::advance` 给出，本方法只消费位置不做推进；
     /// `roll` 仅加权策略使用，取 [0, 1) 内的均匀取值，越界或非有限值按端点夹取。
     pub fn select<'a>(
         &self,
-        credentials: &'a [Credential],
+        candidates: &GroupCandidates<'a>,
         position: usize,
         roll: f64,
     ) -> Option<&'a Credential> {
-        let candidates = self.candidates(credentials);
         if candidates.is_empty() {
             return None;
         }
         match self.strategy {
-            SelectionStrategy::RoundRobin => candidates.get(position % candidates.len()).copied(),
+            SelectionStrategy::RoundRobin => candidates.get(position % candidates.len()),
             SelectionStrategy::Weighted => {
-                pick_by_weight(&candidates, |c| c.weight().value(), roll)
+                pick_by_weight(&candidates.0, |c| c.weight().value(), roll)
             }
-            SelectionStrategy::FillFirst => candidates
-                .iter()
-                .copied()
-                .min_by_key(|c| c.priority().value()),
+            SelectionStrategy::FillFirst => candidates.iter().min_by_key(|c| c.priority().value()),
         }
     }
 
