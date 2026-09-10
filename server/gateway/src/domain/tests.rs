@@ -54,6 +54,23 @@ fn subscription(expires_in_hours: i64) -> Result<Credential, Box<dyn std::error:
     Ok(credential)
 }
 
+/// 带指定权重与优先级的密钥凭证，供组内挑选单测使用
+fn tuned_api_key(
+    name: &str,
+    weight: u32,
+    priority: u16,
+) -> Result<Credential, Box<dyn std::error::Error>> {
+    let mut credential = api_key(name)?;
+    credential.tune(Weight::new(weight), Priority::new(priority)?);
+    Ok(credential)
+}
+
+fn cooling_api_key(name: &str) -> Result<Credential, Box<dyn std::error::Error>> {
+    let mut credential = api_key(name)?;
+    credential.mark_cooling("429 速率限制", Utc::now() + Duration::minutes(1));
+    Ok(credential)
+}
+
 fn target(id: &str, group: GroupId, model_name: &str) -> Result<AliasTarget, InvalidValue> {
     Ok(AliasTarget::new(
         AliasTargetId::new(id),
@@ -372,6 +389,83 @@ fn should_group_credentials_by_provider_with_default_strategy() -> TestResult {
     group.set_strategy(SelectionStrategy::Weighted);
 
     assert_eq!(group.strategy(), SelectionStrategy::Weighted);
+    Ok(())
+}
+
+#[test]
+fn should_select_group_credential_by_round_robin_position() -> TestResult {
+    let group = CredentialGroup::for_provider(provider("DeepSeek")?);
+    let credentials = vec![api_key("deepseek-main")?, api_key("deepseek-backup")?];
+
+    assert_eq!(group.candidates(&credentials).len(), 2);
+
+    let picked = group.select(&credentials, 1, 0.0).ok_or("应有可选凭证")?;
+    assert_eq!(picked.name(), "deepseek-backup");
+
+    let wrapped = group.select(&credentials, 3, 0.0).ok_or("应有可选凭证")?;
+    assert_eq!(wrapped.name(), "deepseek-backup");
+    Ok(())
+}
+
+#[test]
+fn should_skip_unavailable_credentials_when_selecting() -> TestResult {
+    let group = CredentialGroup::for_provider(provider("DeepSeek")?);
+    let credentials = vec![
+        cooling_api_key("deepseek-main")?,
+        api_key("deepseek-backup")?,
+    ];
+
+    assert_eq!(group.candidates(&credentials).len(), 1);
+
+    let picked = group.select(&credentials, 0, 0.0).ok_or("应有可选凭证")?;
+    assert_eq!(picked.name(), "deepseek-backup");
+    assert!(group.select(&[], 0, 0.0).is_none());
+    Ok(())
+}
+
+#[test]
+fn should_select_group_credential_by_weight() -> TestResult {
+    let mut group = CredentialGroup::for_provider(provider("DeepSeek")?);
+    group.set_strategy(SelectionStrategy::Weighted);
+    let credentials = vec![
+        tuned_api_key("deepseek-main", 1, 1)?,
+        tuned_api_key("deepseek-backup", 3, 1)?,
+    ];
+
+    let light = group.select(&credentials, 0, 0.1).ok_or("应有可选凭证")?;
+    let boundary = group.select(&credentials, 0, 0.25).ok_or("应有可选凭证")?;
+    let heavy = group.select(&credentials, 0, 0.9).ok_or("应有可选凭证")?;
+
+    assert_eq!(light.name(), "deepseek-main");
+    assert_eq!(boundary.name(), "deepseek-backup");
+    assert_eq!(heavy.name(), "deepseek-backup");
+    Ok(())
+}
+
+#[test]
+fn should_report_no_candidate_when_every_weight_is_zero() -> TestResult {
+    let mut group = CredentialGroup::for_provider(provider("DeepSeek")?);
+    group.set_strategy(SelectionStrategy::Weighted);
+    let credentials = vec![tuned_api_key("deepseek-main", 0, 1)?];
+
+    assert!(group.select(&credentials, 0, 0.5).is_none());
+    Ok(())
+}
+
+#[test]
+fn should_select_lowest_priority_credential_when_fill_first() -> TestResult {
+    let mut group = CredentialGroup::for_provider(provider("DeepSeek")?);
+    group.set_strategy(SelectionStrategy::FillFirst);
+    let credentials = vec![
+        tuned_api_key("deepseek-main", 1, 2)?,
+        tuned_api_key("deepseek-backup", 1, 1)?,
+    ];
+
+    let picked = group.select(&credentials, 0, 0.0).ok_or("应有可选凭证")?;
+    let again = group.select(&credentials, 1, 0.0).ok_or("应有可选凭证")?;
+
+    assert_eq!(picked.name(), "deepseek-backup");
+    assert_eq!(again.name(), picked.name());
     Ok(())
 }
 

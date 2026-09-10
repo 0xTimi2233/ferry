@@ -78,3 +78,19 @@ Feature: 选定凭证
     When 为一次请求选定凭证
     Then 选定被拒绝且错误信息包含尝试过的凭证名称清单
     And 错误信息里的恢复时间取其中最晚的 T2
+
+  @wip @relay-select_credential_group_weight
+  Scenario: 加权策略下按凭证权重挑选
+    Given 账号组 "g-deepseek" 的策略为加权
+    And 该组凭证 "deepseek-main" 与 "deepseek-backup" 的权重分别为 1 与 3
+    When 以取值 0.1、0.25 与 0.9 分别选定一次
+    Then 取值 0.1 落在权重较低的凭证 "deepseek-main" 上
+    And 取值 0.25 与 0.9 落在权重较高的凭证 "deepseek-backup" 上
+
+  @wip @relay-select_credential_group_priority
+  Scenario: 填满优先策略下取优先级最小的凭证
+    Given 账号组 "g-deepseek" 的策略为填满优先
+    And 该组凭证 "deepseek-main" 的优先级为 2、"deepseek-backup" 的优先级为 1
+    When 为一次请求选定凭证
+    Then 返回优先级为 1 的凭证 "deepseek-backup"
+    And 连续两次选定返回同一凭证

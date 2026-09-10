@@ -90,7 +90,9 @@ pub trait PendingAuthorizationRepository: Send + Sync {
 #[async_trait]
 pub trait SelectionCursorRepository: Send + Sync {
     /// 原子推进指定账号组的轮询位置并返回本次应使用的下标，下标必小于 `len`。
-    /// `len` 是候选集合的长度，冷却中的凭证不进入候选集合，因而不占轮询位置。
+    /// `len` 取 `CredentialGroup::candidates` 给出的候选集合长度，冷却中的凭证不进入候选集合，
+    /// 因而不占轮询位置。
+    /// 位置只由本端口推进，聚合侧的 `CredentialGroup::select` 只消费它不做推进。
     /// 同一账号组的并发调用由端口实现串行化，各次调用拿到的下标互不相同。
     async fn advance(&self, group: &GroupId, len: usize) -> Result<usize, PortError>;
 }

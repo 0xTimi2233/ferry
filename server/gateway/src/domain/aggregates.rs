@@ -442,6 +442,44 @@ impl CredentialGroup {
         self.strategy = strategy;
     }
 
+    /// 本组当下可参与挑选的凭证：冷却中与不可用的一律不在其中。
+    /// 传给 `SelectionCursorRepository::advance` 的长度取本清单的长度，两者必须同源，
+    /// 否则轮询位置会与候选集合错位。
+    pub fn candidates<'a>(&self, credentials: &'a [Credential]) -> Vec<&'a Credential> {
+        credentials.iter().filter(|c| c.is_available()).collect()
+    }
+
+    /// 按本组策略挑选一次调用要用的凭证，无候选时返回空。
+    ///
+    /// 三条策略的规则：轮询取候选集合里 `position` 指向的那一个，
+    /// 加权按凭证权重分担流量且权重为零的凭证不参与，
+    /// 填满优先取优先级数值最小者，同优先级时取候选集合中靠前者。
+    /// 冷却中与不可用的凭证一律跳过，因此也不占轮询位置。
+    ///
+    /// `position` 由 `SelectionCursorRepository::advance` 给出，本方法只消费位置不做推进；
+    /// `roll` 仅加权策略使用，取 [0, 1) 内的均匀取值，越界或非有限值按端点夹取。
+    pub fn select<'a>(
+        &self,
+        credentials: &'a [Credential],
+        position: usize,
+        roll: f64,
+    ) -> Option<&'a Credential> {
+        let candidates = self.candidates(credentials);
+        if candidates.is_empty() {
+            return None;
+        }
+        match self.strategy {
+            SelectionStrategy::RoundRobin => candidates.get(position % candidates.len()).copied(),
+            SelectionStrategy::Weighted => {
+                pick_by_weight(&candidates, |c| c.weight().value(), roll)
+            }
+            SelectionStrategy::FillFirst => candidates
+                .iter()
+                .copied()
+                .min_by_key(|c| c.priority().value()),
+        }
+    }
+
     /// 组内已无凭证时移除，返回供订阅方清理别名目标的事件
     pub fn remove(self) -> DomainEvent {
         DomainEvent::CredentialGroupRemoved { id: self.id }
@@ -489,24 +527,7 @@ impl Alias {
             .iter()
             .filter(|t| t.priority().value() == priority && t.weight().is_participating())
             .collect();
-        let total: u64 = pool.iter().map(|t| u64::from(t.weight().value())).sum();
-        if total == 0 {
-            return None;
-        }
-        let roll = if roll.is_finite() {
-            roll.clamp(0.0, 1.0)
-        } else {
-            0.0
-        };
-        let mut point = ((roll * total as f64) as u64).min(total - 1);
-        for target in pool {
-            let weight = u64::from(target.weight().value());
-            if point < weight {
-                return Some(target);
-            }
-            point -= weight;
-        }
-        None
+        pick_by_weight(&pool, |t| t.weight().value(), roll)
     }
 
     pub fn references_group(&self, group: &GroupId) -> bool {
@@ -678,6 +699,32 @@ impl Settings {
     pub fn rotate_access_key(&mut self, new_hash: impl Into<String>) {
         self.access_key_hash = new_hash.into();
     }
+}
+
+/// 按权重在候选集合里挑一项：区间为左闭右开，边界值归右侧；
+/// 越界或非有限值按端点夹取；权重为零的候选不参与，全部为零时无候选。
+fn pick_by_weight<'a, T, W>(pool: &[&'a T], weight: W, roll: f64) -> Option<&'a T>
+where
+    W: Fn(&T) -> u32,
+{
+    let total: u64 = pool.iter().map(|item| u64::from(weight(*item))).sum();
+    if total == 0 {
+        return None;
+    }
+    let roll = if roll.is_finite() {
+        roll.clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    let mut point = ((roll * total as f64) as u64).min(total - 1);
+    for item in pool {
+        let slice = u64::from(weight(*item));
+        if point < slice {
+            return Some(*item);
+        }
+        point -= slice;
+    }
+    None
 }
 
 pub fn ensure_alias_can_reference(
